@@ -840,9 +840,19 @@ def create_ui():
                         original_srt_output = gr.File(label="📄 原始字幕 (SRT)")
                     
                     with gr.Column():
-                        gr.Markdown("#### 配音版影片 (預覽第一個語言)")
+                        gr.Markdown("#### 配音版影片")
+                        # 語言切換選單（批次處理時啟用）
+                        preview_lang_selector = gr.Dropdown(
+                            choices=[],
+                            label="🌐 切換預覽語言",
+                            visible=False,
+                            interactive=True
+                        )
                         dubbed_video_output = gr.Video(label="配音影片預覽")
                         translated_srt_output = gr.File(label="📄 翻譯字幕 (SRT)")
+                
+                # 用於儲存批次結果的隱藏狀態
+                batch_results_state = gr.State(value=None)
                 
                 gr.Markdown("#### 📦 批次輸出檔案")
                 batch_files_output = gr.File(
@@ -855,15 +865,65 @@ def create_ui():
                     result = process_video_translation(source, src_lang, tgt_langs, burn_subs, progress)
                     
                     # process_video_translation 現在返回 6 個值
-                    # 如果是批次處理，result[5] 會包含所有檔案列表
                     batch_files = result[5] if len(result) > 5 else None
                     
-                    return result[0], result[1], result[2], result[3], result[4], batch_files
+                    # 判斷是否為批次處理
+                    if isinstance(tgt_langs, list) and len(tgt_langs) > 1:
+                        # 批次模式：啟用語言選擇器
+                        lang_choices = tgt_langs
+                        lang_visible = True
+                        selected_lang = tgt_langs[0]
+                        
+                        # 儲存批次結果供切換使用
+                        # 從 batch_files 重建結果映射
+                        batch_data = {}
+                        for f in (batch_files or []):
+                            if f and isinstance(f, str):
+                                for lang in tgt_langs:
+                                    if f'_{lang}.' in f or f'/{lang}/' in f:
+                                        if lang not in batch_data:
+                                            batch_data[lang] = {}
+                                        if f.endswith('.mp4'):
+                                            batch_data[lang]['video'] = f
+                                        elif f.endswith('.srt') and 'translated' in f.lower():
+                                            batch_data[lang]['srt'] = f
+                    else:
+                        # 單一語言模式
+                        lang_choices = []
+                        lang_visible = False
+                        selected_lang = None
+                        batch_data = None
+                    
+                    return (
+                        result[0],  # original_video
+                        result[1],  # dubbed_video
+                        result[2],  # original_srt
+                        result[3],  # translated_srt
+                        result[4],  # status
+                        batch_files,  # batch_files
+                        gr.update(choices=lang_choices, visible=lang_visible, value=selected_lang),  # 語言選擇器
+                        batch_data  # 批次結果狀態
+                    )
+                
+                def switch_preview_language(selected_lang, batch_data):
+                    """切換預覽語言時更新影片和字幕"""
+                    if not batch_data or not selected_lang:
+                        return None, None
+                    
+                    lang_data = batch_data.get(selected_lang, {})
+                    return lang_data.get('video'), lang_data.get('srt')
                 
                 video_process_btn.click(
                     fn=handle_video_process,
                     inputs=[video_url_input, video_upload, video_source_lang, video_target_lang, burn_subtitles_checkbox],
-                    outputs=[original_video_output, dubbed_video_output, original_srt_output, translated_srt_output, video_status, batch_files_output]
+                    outputs=[original_video_output, dubbed_video_output, original_srt_output, translated_srt_output, video_status, batch_files_output, preview_lang_selector, batch_results_state]
+                )
+                
+                # 語言切換事件
+                preview_lang_selector.change(
+                    fn=switch_preview_language,
+                    inputs=[preview_lang_selector, batch_results_state],
+                    outputs=[dubbed_video_output, translated_srt_output]
                 )
                 
                 gr.Markdown("""
