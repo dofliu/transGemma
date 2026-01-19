@@ -1,0 +1,7 @@
+gradio
+ollama
+pytesseract
+Pillow
+PyMuPDF
+faster-whisper
+edge-tts
