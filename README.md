@@ -21,6 +21,7 @@
 * **📄 PDF Translation**: Extract text from PDF documents and translate them page by page.
 * **🎙️ Voice Translation**: Record voice, transcribe using **faster-whisper**, translate, and read aloud using **edge-tts**.
 * **⚡ Real-time Streaming Translation**: Live speech-to-text-to-translation pipeline with automatic audio playback for seamless communication.
+* **🎥 Video Translation & Dubbing** *(NEW)*: Download YouTube videos, generate subtitles, translate to multiple languages, and create dubbed videos with burned-in subtitles.
 
 ### 🛠️ Tech Stack
 
@@ -30,6 +31,7 @@
 * **PDF Processing**: PyMuPDF (fitz)
 * **Speech-to-Text (STT)**: faster-whisper
 * **Text-to-Speech (TTS)**: edge-tts
+* **Video Processing**: yt-dlp + FFmpeg
 
 ### 🚀 Quick Start
 
@@ -49,6 +51,7 @@
 3. **Install external tools**
     * **Ollama**: Install [Ollama](https://ollama.com/) and pull the model: `ollama run translategemma`
     * **Tesseract OCR**: Install [Tesseract](https://github.com/tesseract-ocr/tesseract) and add it to your system PATH.
+    * **FFmpeg**: Install [FFmpeg](https://ffmpeg.org/) for video processing.
 
 4. **Run the application**
 
@@ -73,6 +76,7 @@
 * **📄 PDF 翻譯**：從 PDF 文件中提取文字，支援逐頁翻譯與進度顯示。
 * **🎙️ 語音翻譯**：錄製語音，使用 **faster-whisper** 辨識，翻譯後透過 **edge-tts** 朗讀。
 * **⚡ 即時串流翻譯**：即時接收麥克風輸入，邊說邊譯，並自動播放翻譯語音，實現無縫溝通。
+* **🎥 影片翻譯與配音** *(新功能)*：下載 YouTube 影片，生成字幕，翻譯成多種語言，並製作帶有燒錄字幕的配音影片。
 
 ### 🛠️ 技術架構
 
@@ -82,6 +86,7 @@
 * **PDF 處理**: PyMuPDF (fitz)
 * **語音辨識 (STT)**: faster-whisper
 * **語音合成 (TTS)**: edge-tts
+* **影片處理**: yt-dlp + FFmpeg
 
 ### 🚀 快速開始
 
