@@ -162,7 +162,8 @@ def process_video_translation(video_source, source_lang: str, target_langs,
                 results.get('dubbed_video'),
                 results.get('original_srt'),
                 results.get('translated_srt'),
-                "✅ 處理完成！"
+                "✅ 處理完成！",
+                None  # 單語言不需要批次檔案列表
             )
         else:
             # 多語言：使用批次處理
@@ -172,25 +173,39 @@ def process_video_translation(video_source, source_lang: str, target_langs,
                 progress_callback=update_progress
             )
             
-            # 返回第一個語言的結果到預覽，其他語言的結果在狀態中說明
+            # 返回第一個語言的結果到預覽
             first_lang = langs_list[0]
             first_result = batch_results['languages'].get(first_lang, {})
             
-            status_msg = f"✅ 批次處理完成！共處理 {len(langs_list)} 種語言:\n"
+            # 收集所有批次檔案
+            all_batch_files = []
+            status_msg = f"✅ 批次處理完成！共處理 {len(langs_list)} 種語言:\n\n"
+            
             for lang in langs_list:
                 lang_res = batch_results['languages'].get(lang, {})
+                status_msg += f"📌 {lang}:\n"
                 if lang_res.get('dubbed_video'):
-                    status_msg += f"  ✓ {lang}: {lang_res['dubbed_video']}\n"
+                    all_batch_files.append(lang_res['dubbed_video'])
+                    status_msg += f"   🎬 影片: {lang_res['dubbed_video']}\n"
+                if lang_res.get('translated_srt'):
+                    all_batch_files.append(lang_res['translated_srt'])
+                    status_msg += f"   📄 字幕: {lang_res['translated_srt']}\n"
+                status_msg += "\n"
+            
+            # 也加入原始字幕
+            if batch_results.get('original_srt'):
+                all_batch_files.insert(0, batch_results['original_srt'])
             
             return (
                 batch_results.get('original_video'),
                 first_result.get('dubbed_video'),
                 batch_results.get('original_srt'),
                 first_result.get('translated_srt'),
-                status_msg
+                status_msg,
+                all_batch_files  # 新增：所有批次檔案列表
             )
     except Exception as e:
-        return None, None, None, None, f"❌ 錯誤: {str(e)}"
+        return None, None, None, None, f"❌ 錯誤: {str(e)}", None
 
 
 import numpy as np
@@ -672,7 +687,9 @@ def create_ui():
                 video_status = gr.Textbox(
                     label="處理狀態",
                     value="等待開始...",
-                    interactive=False
+                    interactive=False,
+                    lines=8,
+                    max_lines=15
                 )
                 
                 with gr.Row():
@@ -682,18 +699,30 @@ def create_ui():
                         original_srt_output = gr.File(label="📄 原始字幕 (SRT)")
                     
                     with gr.Column():
-                        gr.Markdown("#### 配音版影片")
+                        gr.Markdown("#### 配音版影片 (預覽第一個語言)")
                         dubbed_video_output = gr.Video(label="配音影片預覽")
                         translated_srt_output = gr.File(label="📄 翻譯字幕 (SRT)")
                 
+                gr.Markdown("#### 📦 批次輸出檔案")
+                batch_files_output = gr.File(
+                    label="所有生成的檔案（多語言時會有多個）",
+                    file_count="multiple"
+                )
+                
                 def handle_video_process(url, uploaded, src_lang, tgt_langs, burn_subs, progress=gr.Progress()):
                     source = url if url else uploaded
-                    return process_video_translation(source, src_lang, tgt_langs, burn_subs, progress)
+                    result = process_video_translation(source, src_lang, tgt_langs, burn_subs, progress)
+                    
+                    # process_video_translation 現在返回 6 個值
+                    # 如果是批次處理，result[5] 會包含所有檔案列表
+                    batch_files = result[5] if len(result) > 5 else None
+                    
+                    return result[0], result[1], result[2], result[3], result[4], batch_files
                 
                 video_process_btn.click(
                     fn=handle_video_process,
                     inputs=[video_url_input, video_upload, video_source_lang, video_target_lang, burn_subtitles_checkbox],
-                    outputs=[original_video_output, dubbed_video_output, original_srt_output, translated_srt_output, video_status]
+                    outputs=[original_video_output, dubbed_video_output, original_srt_output, translated_srt_output, video_status, batch_files_output]
                 )
                 
                 gr.Markdown("""
@@ -701,6 +730,7 @@ def create_ui():
                 > - 影片處理需要較長時間（下載、辨識、翻譯、合成）
                 > - 建議先測試短影片（5 分鐘內）
                 > - 需要系統已安裝 ffmpeg
+                > - 批次處理多語言時，所有生成的檔案會列在「批次輸出檔案」區域
                 """)
             
             # ========== 關於分頁 ==========
