@@ -5,3 +5,5 @@ Pillow
 PyMuPDF
 faster-whisper
 edge-tts
+yt-dlp
+ffmpeg-python

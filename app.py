@@ -117,6 +117,47 @@ def translate_voice(audio, source_lang: str, target_lang: str):
     return recognized_text, translated_text, audio_path
 
 
+# ========== 影片翻譯功能 ==========
+from video_dubber import VideoDubber
+
+# 全域影片處理器
+video_dubber_instance = None
+
+def process_video_translation(video_source, source_lang: str, target_lang: str, progress=gr.Progress()):
+    """處理影片翻譯與配音"""
+    global video_dubber_instance
+    
+    if not video_source:
+        return None, None, None, None, "請提供 YouTube 網址或上傳影片檔案"
+    
+    # 建立新的處理器
+    video_dubber_instance = VideoDubber()
+    
+    def update_progress(msg):
+        progress(0.5, desc=msg)
+    
+    try:
+        # 判斷來源類型
+        if isinstance(video_source, str) and video_source.startswith('http'):
+            source = video_source
+        else:
+            source = video_source  # 檔案路徑
+        
+        results = video_dubber_instance.process_video(
+            source, source_lang, target_lang, update_progress
+        )
+        
+        return (
+            results.get('original_video'),
+            results.get('dubbed_video'),
+            results.get('original_srt'),
+            results.get('translated_srt'),
+            "✅ 處理完成！"
+        )
+    except Exception as e:
+        return None, None, None, None, f"❌ 錯誤: {str(e)}"
+
+
 import numpy as np
 import tempfile
 import wave
@@ -550,6 +591,71 @@ def create_ui():
                 > - 會有 2-3 秒延遲（等待段落結束才處理）
                 > - 說完一段話後稍作停頓，系統會自動辨識
                 > - 點擊「重置」清空所有內容重新開始
+                """)
+            
+            # ========== 影片翻譯分頁 ==========
+            with gr.TabItem("🎥 影片翻譯"):
+                gr.Markdown("### 影片翻譯與配音 - 自動生成翻譯字幕與配音")
+                
+                with gr.Row():
+                    video_url_input = gr.Textbox(
+                        label="YouTube 網址",
+                        placeholder="https://www.youtube.com/watch?v=...",
+                        lines=1
+                    )
+                
+                with gr.Row():
+                    video_upload = gr.Video(
+                        label="或上傳影片檔案",
+                        sources=["upload"]
+                    )
+                
+                with gr.Row():
+                    video_source_lang = gr.Dropdown(
+                        choices=[("🔍 自動偵測", "auto")] + language_choices,
+                        value="auto",
+                        label="影片語言"
+                    )
+                    video_target_lang = gr.Dropdown(
+                        choices=language_choices,
+                        value="zh_TW",
+                        label="翻譯目標語言"
+                    )
+                
+                video_process_btn = gr.Button("🚀 開始處理", variant="primary")
+                
+                video_status = gr.Textbox(
+                    label="處理狀態",
+                    value="等待開始...",
+                    interactive=False
+                )
+                
+                with gr.Row():
+                    with gr.Column():
+                        gr.Markdown("#### 原始影片")
+                        original_video_output = gr.Video(label="原始影片預覽")
+                        original_srt_output = gr.File(label="📄 原始字幕 (SRT)")
+                    
+                    with gr.Column():
+                        gr.Markdown("#### 配音版影片")
+                        dubbed_video_output = gr.Video(label="配音影片預覽")
+                        translated_srt_output = gr.File(label="📄 翻譯字幕 (SRT)")
+                
+                def handle_video_process(url, uploaded, src_lang, tgt_lang, progress=gr.Progress()):
+                    source = url if url else uploaded
+                    return process_video_translation(source, src_lang, tgt_lang, progress)
+                
+                video_process_btn.click(
+                    fn=handle_video_process,
+                    inputs=[video_url_input, video_upload, video_source_lang, video_target_lang],
+                    outputs=[original_video_output, dubbed_video_output, original_srt_output, translated_srt_output, video_status]
+                )
+                
+                gr.Markdown("""
+                > **⚠️ 注意事項**：
+                > - 影片處理需要較長時間（下載、辨識、翻譯、合成）
+                > - 建議先測試短影片（5 分鐘內）
+                > - 需要系統已安裝 ffmpeg
                 """)
             
             # ========== 關於分頁 ==========

@@ -105,3 +105,33 @@ def get_language_choices():
 def get_language_info(code: str) -> tuple:
     """取得語言資訊"""
     return LANGUAGES.get(code, ("Unknown", "Unknown", code))
+
+
+# Edge TTS 語音對照表
+EDGE_TTS_VOICES = {
+    "zh_TW": "zh-TW-HsiaoChenNeural",
+    "zh_CN": "zh-CN-XiaoxiaoNeural",
+    "en_US": "en-US-JennyNeural",
+    "ja_JP": "ja-JP-NanamiNeural",
+    "ko_KR": "ko-KR-SunHiNeural",
+    "de_DE": "de-DE-KatjaNeural",
+    "fr_FR": "fr-FR-DeniseNeural",
+    "es_ES": "es-ES-ElviraNeural",
+    "it_IT": "it-IT-ElsaNeural",
+    "pt_BR": "pt-BR-FranciscaNeural",
+    "ru_RU": "ru-RU-SvetlanaNeural",
+    "vi_VN": "vi-VN-HoaiMyNeural",
+    "th_TH": "th-TH-PremwadeeNeural",
+    "id_ID": "id-ID-GadisNeural",
+    "ar_SA": "ar-SA-ZariyahNeural",
+    "tr_TR": "tr-TR-EmelNeural",
+    "pl_PL": "pl-PL-ZofiaNeural",
+    "nl_NL": "nl-NL-ColetteNeural",
+    "hi_IN": "hi-IN-SwaraNeural",
+}
+
+
+def get_edge_tts_voice(lang_code: str) -> str:
+    """取得對應的 Edge TTS 語音名稱"""
+    return EDGE_TTS_VOICES.get(lang_code, "en-US-JennyNeural")
+
