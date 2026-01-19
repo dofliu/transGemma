@@ -123,12 +123,19 @@ from video_dubber import VideoDubber
 # 全域影片處理器
 video_dubber_instance = None
 
-def process_video_translation(video_source, source_lang: str, target_lang: str, progress=gr.Progress()):
-    """處理影片翻譯與配音"""
+def process_video_translation(video_source, source_lang: str, target_langs, 
+                               burn_subtitles: bool = False, progress=gr.Progress()):
+    """處理影片翻譯與配音（支援多語言批次）"""
     global video_dubber_instance
     
     if not video_source:
         return None, None, None, None, "請提供 YouTube 網址或上傳影片檔案"
+    
+    # 處理多語言
+    if isinstance(target_langs, list):
+        langs_list = target_langs if target_langs else ["zh_TW"]
+    else:
+        langs_list = [target_langs]
     
     # 建立新的處理器
     video_dubber_instance = VideoDubber()
@@ -143,17 +150,45 @@ def process_video_translation(video_source, source_lang: str, target_lang: str, 
         else:
             source = video_source  # 檔案路徑
         
-        results = video_dubber_instance.process_video(
-            source, source_lang, target_lang, update_progress
-        )
-        
-        return (
-            results.get('original_video'),
-            results.get('dubbed_video'),
-            results.get('original_srt'),
-            results.get('translated_srt'),
-            "✅ 處理完成！"
-        )
+        if len(langs_list) == 1:
+            # 單一語言：使用原本的方法
+            results = video_dubber_instance.process_video(
+                source, source_lang, langs_list[0], 
+                burn_subtitles=burn_subtitles,
+                progress_callback=update_progress
+            )
+            return (
+                results.get('original_video'),
+                results.get('dubbed_video'),
+                results.get('original_srt'),
+                results.get('translated_srt'),
+                "✅ 處理完成！"
+            )
+        else:
+            # 多語言：使用批次處理
+            batch_results = video_dubber_instance.process_video_batch(
+                source, source_lang, langs_list,
+                burn_subtitles=burn_subtitles,
+                progress_callback=update_progress
+            )
+            
+            # 返回第一個語言的結果到預覽，其他語言的結果在狀態中說明
+            first_lang = langs_list[0]
+            first_result = batch_results['languages'].get(first_lang, {})
+            
+            status_msg = f"✅ 批次處理完成！共處理 {len(langs_list)} 種語言:\n"
+            for lang in langs_list:
+                lang_res = batch_results['languages'].get(lang, {})
+                if lang_res.get('dubbed_video'):
+                    status_msg += f"  ✓ {lang}: {lang_res['dubbed_video']}\n"
+            
+            return (
+                batch_results.get('original_video'),
+                first_result.get('dubbed_video'),
+                batch_results.get('original_srt'),
+                first_result.get('translated_srt'),
+                status_msg
+            )
     except Exception as e:
         return None, None, None, None, f"❌ 錯誤: {str(e)}"
 
@@ -619,7 +654,17 @@ def create_ui():
                     video_target_lang = gr.Dropdown(
                         choices=language_choices,
                         value="zh_TW",
-                        label="翻譯目標語言"
+                        label="翻譯目標語言",
+                        multiselect=True,
+                        max_choices=5,
+                        info="可選擇多個語言（最多5個）進行批次處理"
+                    )
+                
+                with gr.Row():
+                    burn_subtitles_checkbox = gr.Checkbox(
+                        label="🔤 燒錄字幕到影片",
+                        value=True,
+                        info="將翻譯字幕直接嵌入影片畫面"
                     )
                 
                 video_process_btn = gr.Button("🚀 開始處理", variant="primary")
@@ -641,13 +686,13 @@ def create_ui():
                         dubbed_video_output = gr.Video(label="配音影片預覽")
                         translated_srt_output = gr.File(label="📄 翻譯字幕 (SRT)")
                 
-                def handle_video_process(url, uploaded, src_lang, tgt_lang, progress=gr.Progress()):
+                def handle_video_process(url, uploaded, src_lang, tgt_langs, burn_subs, progress=gr.Progress()):
                     source = url if url else uploaded
-                    return process_video_translation(source, src_lang, tgt_lang, progress)
+                    return process_video_translation(source, src_lang, tgt_langs, burn_subs, progress)
                 
                 video_process_btn.click(
                     fn=handle_video_process,
-                    inputs=[video_url_input, video_upload, video_source_lang, video_target_lang],
+                    inputs=[video_url_input, video_upload, video_source_lang, video_target_lang, burn_subtitles_checkbox],
                     outputs=[original_video_output, dubbed_video_output, original_srt_output, translated_srt_output, video_status]
                 )
                 

@@ -184,6 +184,7 @@ class VideoDubber:
     def adjust_audio_speed(self, audio_path: str, target_duration: float) -> str:
         """
         調整音訊速度以符合目標時長
+        使用較窄的速度範圍避免不自然的語速
         """
         current_duration = self.get_audio_duration(audio_path)
         
@@ -192,13 +193,19 @@ class VideoDubber:
         
         speed_factor = current_duration / target_duration
         
-        # 限制速度範圍 (0.5x - 2.0x)
-        speed_factor = max(0.5, min(2.0, speed_factor))
+        # 限制速度範圍 (0.85x - 1.25x) - 更窄的範圍避免不自然
+        # 超出範圍的部分：過長會截斷，過短會保留靜音
+        original_speed = speed_factor
+        speed_factor = max(0.85, min(1.25, speed_factor))
         
         if abs(speed_factor - 1.0) < 0.05:  # 差異小於 5% 不調整
             return audio_path
         
         output_path = audio_path.replace('.mp3', '_adjusted.mp3')
+        
+        # 如果原始速度超出範圍，記錄警告
+        if original_speed < 0.85 or original_speed > 1.25:
+            print(f"⚠️ 語速調整受限: 原始需要 {original_speed:.2f}x，實際使用 {speed_factor:.2f}x")
         
         subprocess.run([
             'ffmpeg', '-y', '-i', audio_path,
@@ -256,25 +263,50 @@ class VideoDubber:
         return output_path
     
     def mux_video(self, video_path: str, dubbed_audio_path: str,
-                   subtitle_path: str = None, progress_callback=None) -> str:
+                   subtitle_path: str = None, burn_subtitles: bool = False,
+                   progress_callback=None) -> str:
         """
         合成最終影片
+        
+        Args:
+            video_path: 原始影片路徑
+            dubbed_audio_path: 配音音軌路徑
+            subtitle_path: 字幕檔路徑 (SRT)
+            burn_subtitles: 是否燒錄字幕到影片中
         """
         if progress_callback:
             progress_callback("正在合成影片...")
         
         output_path = os.path.join(self.output_dir, "dubbed_video.mp4")
         
-        cmd = [
-            'ffmpeg', '-y',
-            '-i', video_path,
-            '-i', dubbed_audio_path,
-            '-c:v', 'copy',
-            '-map', '0:v:0',
-            '-map', '1:a:0',
-            '-shortest',
-            output_path
-        ]
+        if burn_subtitles and subtitle_path and os.path.exists(subtitle_path):
+            # 燒錄字幕 - 需要重新編碼影片
+            # 處理 Windows 路徑中的反斜線和冒號
+            subtitle_escaped = subtitle_path.replace('\\', '/').replace(':', '\\:')
+            
+            cmd = [
+                'ffmpeg', '-y',
+                '-i', video_path,
+                '-i', dubbed_audio_path,
+                '-vf', f"subtitles='{subtitle_escaped}':force_style='FontSize=18,PrimaryColour=&HFFFFFF,OutlineColour=&H000000,Outline=2'",
+                '-c:v', 'libx264', '-preset', 'fast', '-crf', '23',
+                '-map', '0:v:0',
+                '-map', '1:a:0',
+                '-shortest',
+                output_path
+            ]
+        else:
+            # 不燒錄字幕 - 直接複製影片流
+            cmd = [
+                'ffmpeg', '-y',
+                '-i', video_path,
+                '-i', dubbed_audio_path,
+                '-c:v', 'copy',
+                '-map', '0:v:0',
+                '-map', '1:a:0',
+                '-shortest',
+                output_path
+            ]
         
         subprocess.run(cmd, capture_output=True)
         
@@ -304,9 +336,16 @@ class VideoDubber:
         return output_path
     
     def process_video(self, video_source: str, source_lang: str, target_lang: str,
+                       burn_subtitles: bool = False,
                        progress_callback=None) -> dict:
         """
         完整處理流程
+        
+        Args:
+            video_source: YouTube URL 或本地檔案路徑
+            source_lang: 來源語言
+            target_lang: 目標語言
+            burn_subtitles: 是否燒錄字幕到影片
         
         Returns:
             dict with paths to: video, dubbed_video, original_srt, translated_srt
@@ -337,7 +376,8 @@ class VideoDubber:
         segments = self.translate_segments(segments, target_lang, source_lang, progress_callback)
         
         # 產生翻譯 SRT
-        results['translated_srt'] = self.generate_srt(segments, use_translated=True)
+        translated_srt = self.generate_srt(segments, use_translated=True)
+        results['translated_srt'] = translated_srt
         
         # 合成語音
         segments = self.synthesize_all_audio(segments, target_lang, progress_callback)
@@ -348,15 +388,106 @@ class VideoDubber:
         # 合併配音音軌
         dubbed_audio = self.merge_dubbed_audio(segments, total_duration, progress_callback)
         
-        # 合成影片
+        # 合成影片（支援字幕燒錄）
         if dubbed_audio:
-            results['dubbed_video'] = self.mux_video(video_path, dubbed_audio, 
-                                                      progress_callback=progress_callback)
+            results['dubbed_video'] = self.mux_video(
+                video_path, dubbed_audio,
+                subtitle_path=translated_srt,
+                burn_subtitles=burn_subtitles,
+                progress_callback=progress_callback
+            )
         
         if progress_callback:
             progress_callback("✅ 處理完成！")
         
         return results
+    
+    def process_video_batch(self, video_source: str, source_lang: str, target_langs: list,
+                             burn_subtitles: bool = False,
+                             progress_callback=None) -> dict:
+        """
+        批次處理多語言翻譯
+        
+        Args:
+            video_source: YouTube URL 或本地檔案路徑
+            source_lang: 來源語言
+            target_langs: 目標語言列表
+            burn_subtitles: 是否燒錄字幕
+        
+        Returns:
+            dict with language keys, each containing video/srt paths
+        """
+        batch_results = {}
+        total_langs = len(target_langs)
+        
+        # 先下載/提取音訊（只做一次）
+        if video_source.startswith('http'):
+            video_path, audio_path = self.download_youtube(video_source, progress_callback)
+        else:
+            video_path = video_source
+            audio_path = os.path.join(self.output_dir, "audio.wav")
+            subprocess.run([
+                'ffmpeg', '-y', '-i', video_path,
+                '-vn', '-acodec', 'pcm_s16le', '-ar', '16000', '-ac', '1',
+                audio_path
+            ], capture_output=True)
+        
+        # 生成字幕（只做一次）
+        segments = self.generate_subtitles(audio_path, source_lang, progress_callback)
+        original_srt = self.generate_srt(segments, use_translated=False)
+        batch_results['original_video'] = video_path
+        batch_results['original_srt'] = original_srt
+        batch_results['languages'] = {}
+        
+        # 對每個語言進行處理
+        for i, target_lang in enumerate(target_langs):
+            if progress_callback:
+                progress_callback(f"處理語言 {i+1}/{total_langs}: {target_lang}")
+            
+            lang_result = {}
+            
+            # 複製 segments 以避免污染
+            import copy
+            lang_segments = copy.deepcopy(segments)
+            
+            # 翻譯
+            lang_segments = self.translate_segments(lang_segments, target_lang, source_lang, progress_callback)
+            
+            # 產生翻譯 SRT
+            translated_srt = self.generate_srt(lang_segments, use_translated=True)
+            # 重命名避免覆蓋
+            lang_srt_path = translated_srt.replace('.srt', f'_{target_lang}.srt')
+            os.rename(translated_srt, lang_srt_path)
+            lang_result['translated_srt'] = lang_srt_path
+            
+            # 合成語音
+            lang_segments = self.synthesize_all_audio(lang_segments, target_lang, progress_callback)
+            
+            # 取得影片總時長
+            total_duration = self.get_audio_duration(audio_path)
+            
+            # 合併配音音軌
+            dubbed_audio = self.merge_dubbed_audio(lang_segments, total_duration, progress_callback)
+            
+            # 合成影片
+            if dubbed_audio:
+                dubbed_video = self.mux_video(
+                    video_path, dubbed_audio,
+                    subtitle_path=lang_srt_path,
+                    burn_subtitles=burn_subtitles,
+                    progress_callback=progress_callback
+                )
+                # 重命名避免覆蓋
+                lang_video_path = dubbed_video.replace('.mp4', f'_{target_lang}.mp4')
+                os.rename(dubbed_video, lang_video_path)
+                lang_result['dubbed_video'] = lang_video_path
+            
+            batch_results['languages'][target_lang] = lang_result
+        
+        if progress_callback:
+            progress_callback(f"✅ 批次處理完成！共處理 {total_langs} 種語言")
+        
+        return batch_results
 
 
 # 單例
