@@ -50,6 +50,9 @@ def get_dropdown_choices():
     return choices
 
 
+# ========== 歷史記錄管理 ==========
+from history import history_manager
+
 def translate_text(text: str, source_lang: str, target_lang: str):
     """文字翻譯（串流）"""
     if not text.strip():
@@ -61,8 +64,19 @@ def translate_text(text: str, source_lang: str, target_lang: str):
     
     yield f"🔄 翻譯中... ({src_info[0]} → {tgt_info[0]})\n"
     
+    full_translation = ""
     for result in translator.translate_stream(text, source_lang, target_lang):
+        full_translation = result
         yield result
+        
+    # 寫入歷史記錄
+    history_manager.add_history(
+        type="text",
+        source_lang=source_lang,
+        target_lang=target_lang,
+        original_content=text,
+        translated_content=full_translation
+    )
 
 
 def translate_image(image, source_lang: str, target_lang: str):
@@ -71,8 +85,24 @@ def translate_image(image, source_lang: str, target_lang: str):
         yield "請上傳圖片..."
         return
     
+    full_result = ""
+    original_text = "Image Translation"
+    
     for result in translator.translate_image(image, target_lang, source_lang):
+        full_result = result
         yield result
+        
+    # 寫入歷史記錄
+    # 這裡我們無法輕易保留原始圖片，所以存標註
+    # 如果想存圖片，需將圖片存到 output 目錄並記錄路徑
+    history_manager.add_history(
+        type="image",
+        source_lang=source_lang,
+        target_lang=target_lang,
+        original_content="[Image Upload]",
+        translated_content=full_result,
+        details={"result_length": len(full_result)}
+    )
 
 
 def translate_pdf(pdf_file, source_lang: str, target_lang: str):
@@ -81,8 +111,20 @@ def translate_pdf(pdf_file, source_lang: str, target_lang: str):
         yield "請上傳 PDF 文件..."
         return
     
+    full_result = ""
     for result in translator.translate_pdf(pdf_file, target_lang, source_lang):
+        full_result = result
         yield result
+        
+    # 寫入歷史記錄
+    history_manager.add_history(
+        type="pdf",
+        source_lang=source_lang,
+        target_lang=target_lang,
+        original_content=pdf_file if isinstance(pdf_file, str) else "[PDF File]",
+        translated_content=full_result,
+        details={"pdf_processed": True}
+    )
 
 
 import asyncio
@@ -113,6 +155,16 @@ def translate_voice(audio, source_lang: str, target_lang: str):
     except Exception as e:
         audio_path = None
         print(f"TTS 錯誤: {e}")
+    
+    # 寫入歷史記錄
+    history_manager.add_history(
+        type="voice",
+        source_lang=source_lang,
+        target_lang=target_lang,
+        original_content=recognized_text,
+        translated_content=translated_text,
+        details={"audio_path": audio_path if audio_path else ""}
+    )
     
     return recognized_text, translated_text, audio_path
 
@@ -157,6 +209,20 @@ def process_video_translation(video_source, source_lang: str, target_langs,
                 burn_subtitles=burn_subtitles,
                 progress_callback=update_progress
             )
+            
+            # 寫入歷史記錄
+            history_manager.add_history(
+                type="video",
+                source_lang=source_lang,
+                target_lang=langs_list[0],
+                original_content=source,
+                translated_content=results.get('dubbed_video', ''),
+                details={
+                    "original_srt": results.get('original_srt'),
+                    "translated_srt": results.get('translated_srt')
+                }
+            )
+            
             return (
                 results.get('original_video'),
                 results.get('dubbed_video'),
@@ -172,6 +238,21 @@ def process_video_translation(video_source, source_lang: str, target_langs,
                 burn_subtitles=burn_subtitles,
                 progress_callback=update_progress
             )
+            
+            # 寫入歷史記錄 (批次)
+            for lang, result in batch_results['languages'].items():
+                history_manager.add_history(
+                    type="video_batch",
+                    source_lang=source_lang,
+                    target_lang=lang,
+                    original_content=source,
+                    translated_content=result.get('dubbed_video', ''),
+                    details={
+                        "original_srt": batch_results.get('original_srt'),
+                        "translated_srt": result.get('translated_srt'),
+                        "batch_id": str(id(batch_results)) # 簡單標記同一批次
+                    }
+                )
             
             # 返回第一個語言的結果到預覽
             first_lang = langs_list[0]
@@ -346,6 +427,62 @@ def reset_stream_state():
 def swap_languages(source: str, target: str):
     """交換來源與目標語言"""
     return target, source
+
+
+# ============ 歷史記錄介面 ============
+def create_history_tab():
+    with gr.TabItem("📜 歷史記錄"):
+        with gr.Row():
+            refresh_btn = gr.Button("🔄 重新整理", size="sm")
+            clear_btn = gr.Button("🗑️ 清空記錄", size="sm", variant="stop")
+            filter_type = gr.Dropdown(
+                choices=["All", "text", "image", "pdf", "voice", "video", "video_batch"],
+                value="All",
+                label="篩選類型"
+            )
+        
+        history_table = gr.Dataframe(
+            headers=["ID", "時間", "類型", "來源語言", "目標語言", "原始內容", "翻譯結果"],
+            datatype=["number", "str", "str", "str", "str", "str", "str"],
+            interactive=False,
+            wrap=True
+        )
+        
+        def get_history_data(filter_val):
+            type_filter = filter_val if filter_val != "All" else None
+            records = history_manager.get_history(limit=50, type_filter=type_filter)
+            data = []
+            for r in records:
+                # 簡化內容顯示
+                orig = r["original_content"]
+                if len(orig) > 50: orig = orig[:47] + "..."
+                trans = r["translated_content"]
+                if len(trans) > 50: trans = trans[:47] + "..."
+                
+                data.append([
+                    r["id"],
+                    r["timestamp"].replace("T", " ")[:19],
+                    r["type"],
+                    r["source_lang"],
+                    r["target_lang"],
+                    orig,
+                    trans
+                ])
+            return data
+            
+        def clear_all_history():
+            history_manager.clear_history()
+            return get_history_data("All")
+
+        refresh_btn.click(get_history_data, inputs=[filter_type], outputs=[history_table])
+        filter_type.change(get_history_data, inputs=[filter_type], outputs=[history_table])
+        clear_btn.click(clear_all_history, outputs=[history_table])
+        
+        # 初始加載
+        # 注意: 這裡不能直接調用 click 觸發，因為介面還沒 render 完成
+        # 可以用 load 事件，但 Gradio TabItem 沒有 load。
+        # 我們讓 refresh 按鈕與 Dataframe 綁定，使用者點擊時更新。
+        # 或者在 create_ui 最後觸發一次。
 
 
 # ============ 建立介面 ============
@@ -732,6 +869,9 @@ def create_ui():
                 > - 需要系統已安裝 ffmpeg
                 > - 批次處理多語言時，所有生成的檔案會列在「批次輸出檔案」區域
                 """)
+            
+            # ========== 歷史記錄分頁 ==========
+            create_history_tab()
             
             # ========== 關於分頁 ==========
             with gr.TabItem("ℹ️ 關於"):

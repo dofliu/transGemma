@@ -245,11 +245,17 @@ class VideoDubber:
         if not filter_parts:
             return ""
         
-        # 混合所有音軌，並加大音量（amix 會降低音量，需要補償）
+        # 混合所有音軌
         mix_inputs = ''.join([f'[a{i}]' for i in range(len(filter_parts))])
-        # amix 會將音量除以輸入數量，使用 volume 濾鏡補償
-        volume_boost = min(len(filter_parts), 5)  # 最多 5 倍
-        filter_complex = ';'.join(filter_parts) + f';{mix_inputs}amix=inputs={len(filter_parts)}:duration=longest,volume={volume_boost}[out]'
+        
+        # 使用 amix 混合，接著使用 loudnorm 進行標準化響度控制
+        # I=-14 是 YouTube/Web 建議的響度標準 (LUFS)
+        # TP=-1.0 是 True Peak 上限
+        # amix 參數: dropout_transition=0 避免非重疊區域音量浮動 (如果有重疊的話)
+        # 注意: 如果 segments 數量非常多，amix 可能會很慢或指令過長。暫時維持此實作。
+        
+        # 移除原來的 volume_boost，改用 loudnorm
+        filter_complex = ';'.join(filter_parts) + f';{mix_inputs}amix=inputs={len(filter_parts)}:duration=longest:dropout_transition=0,loudnorm=I=-14:TP=-1.0:LRA=11[out]'
         
         cmd = ['ffmpeg', '-y'] + inputs + [
             '-filter_complex', filter_complex,

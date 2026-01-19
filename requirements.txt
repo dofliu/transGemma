@@ -7,3 +7,7 @@ faster-whisper
 edge-tts
 yt-dlp
 ffmpeg-python
+fastapi
+uvicorn
+python-multipart
+mcp

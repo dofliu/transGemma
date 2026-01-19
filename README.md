@@ -59,7 +59,35 @@
     python app.py
     ```
 
-    Open your browser at `http://localhost:7860`.
+    OPEN YOUR BROWSER AT `http://localhost:7860`.
+
+### 🔌 API Mode
+
+To run TranslateGemma as a REST API (FastAPI) which also serves the Web UI:
+
+```bash
+python api.py
+```
+
+* **API Docs**: `http://localhost:8000/docs`
+* **Web UI**: `http://localhost:8000/`
+
+### 🤖 MCP Server
+
+TranslateGemma supports the **Model Context Protocol (MCP)**, allowing integration with AI agents like **Claude Desktop** or **Cursor**.
+
+Add the following configuration to your MCP settings (e.g., `claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "translategemma": {
+      "command": "python",
+      "args": ["/absolute/path/to/transGemma/mcp_server.py"]
+    }
+  }
+}
+```
 
 ---
 
@@ -114,6 +142,34 @@
     ```
 
     在瀏覽器打開 `http://localhost:7860` 即可使用。
+
+### 🔌 API 模式
+
+啟動 API 模式（同時提供 REST API 與網頁介面）：
+
+```bash
+python api.py
+```
+
+* **API 文件**: `http://localhost:8000/docs`
+* **網頁介面**: `http://localhost:8000/`
+
+### 🤖 MCP Server
+
+TranslateGemma 支援 **Model Context Protocol (MCP)**，可供 **Claude Desktop** 或 **Cursor** 等 AI Agent 調用。
+
+請將以下設定加入您的 MCP 設定檔（如 `claude_desktop_config.json`）：
+
+```json
+{
+  "mcpServers": {
+    "translategemma": {
+      "command": "python",
+      "args": ["/absolute/path/to/transGemma/mcp_server.py"]
+    }
+  }
+}
+```
 
 ---
 
