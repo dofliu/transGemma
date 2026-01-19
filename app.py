@@ -189,8 +189,12 @@ def process_video_translation(video_source, source_lang: str, target_langs,
     else:
         langs_list = [target_langs]
     
-    # 建立新的處理器
-    video_dubber_instance = VideoDubber()
+    # 建立新的處理器 (單例模式，避免重複載入模型)
+    if video_dubber_instance is None:
+        # 使用專案下的 temp 目錄
+        project_temp = os.path.join(os.getcwd(), "temp")
+        os.makedirs(project_temp, exist_ok=True)
+        video_dubber_instance = VideoDubber(output_dir=project_temp)
     
     def update_progress(msg):
         progress(0.5, desc=msg)

@@ -35,7 +35,7 @@
 
 ### 🚀 Quick Start
 
-1. **Clone the repository**
+1. **Clone and install**
 
     ```bash
     git clone https://github.com/dofliu/transGemma.git

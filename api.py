@@ -12,6 +12,12 @@ from history import history_manager
 import gradio as gr
 from app import create_ui
 
+# Ensure temp directory exists and configure video_dubber
+project_temp = os.path.join(os.getcwd(), "temp")
+os.makedirs(project_temp, exist_ok=True)
+video_dubber.output_dir = project_temp
+print(f"API configured video_dubber output_dir: {project_temp}")
+
 app = FastAPI(
     title="TranslateGemma API",
     description="API for TranslateGemma Translation Service",
