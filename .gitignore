@@ -33,6 +33,7 @@ venv.bak/
 temp/
 tmp/
 output/
+*.db
 *_output.pdf
 *_output.mp3
 *_output_*.mp3
