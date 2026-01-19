@@ -112,6 +112,24 @@
 
 ---
 
+<a name="roadmap"></a>
+
+## 🗺️ Roadmap / 未來規劃
+
+### 🔥 High Priority / 高優先級
+
+* **Format-preserving PDF Translation / 格式保留 PDF 翻譯**: Translate PDF documents while maintaining original layout and formatting (similar to BabelDOC).
+* **Scanned PDF Support / 掃描版 PDF 支援**: Enhanced support for scanned PDFs using OCR.
+
+### ⭐ Planned Features / 規劃中功能
+
+* **Translation History / 翻譯歷史記錄**: Local storage for past translations.
+* **Batch Translation / 批次翻譯**: Process multiple files at once.
+* **API Mode / API 模式**: Expose translation services via REST API for external integration.
+* **Performance Optimization / 效能優化**: Further optimization for local inference speed.
+
+---
+
 ## 📄 License
 
 MIT License
