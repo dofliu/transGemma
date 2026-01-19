@@ -876,16 +876,20 @@ def create_ui():
                         
                         # 儲存批次結果供切換使用
                         # 從 batch_files 重建結果映射
+                        # 路徑結構: temp/batch_job_xxx/{lang}/dubbed_video.mp4
                         batch_data = {}
                         for f in (batch_files or []):
                             if f and isinstance(f, str):
+                                # 標準化路徑分隔符
+                                f_normalized = f.replace('\\', '/')
                                 for lang in tgt_langs:
-                                    if f'_{lang}.' in f or f'/{lang}/' in f:
+                                    # 檢查路徑中是否包含語言資料夾 /{lang}/
+                                    if f'/{lang}/' in f_normalized:
                                         if lang not in batch_data:
                                             batch_data[lang] = {}
                                         if f.endswith('.mp4'):
                                             batch_data[lang]['video'] = f
-                                        elif f.endswith('.srt') and 'translated' in f.lower():
+                                        elif f.endswith('.srt'):
                                             batch_data[lang]['srt'] = f
                     else:
                         # 單一語言模式

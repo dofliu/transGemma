@@ -161,36 +161,8 @@ class VideoDubber:
             if progress_callback:
                 progress_callback(f"翻譯中... ({i+1}/{total})")
             
-            # 計算這段的可用時間
-            duration = seg.end - seg.start
-            
-            # 估計目標語言的理想字數
-            if target_lang.startswith("en") or target_lang in ["de", "fr", "es", "it", "pt", "ru"]:
-                # 英文等語言用字元數估計（含空格）
-                max_chars = int(duration * 12)  # 約 12 字元/秒
-                length_hint = f"Keep translation under {max_chars} characters (including spaces)."
-            else:
-                # 中日韓等語言用字數估計
-                max_chars = int(duration * target_rate)
-                length_hint = f"Keep translation under {max_chars} characters."
-            
-            # 構建長度感知的翻譯 prompt
-            # 注意：TranslateGemma 使用特定格式，這裡我們在原文前加入提示
-            length_aware_prompt = f"""[DUBBING MODE] Translate concisely for voice dubbing. 
-Time limit: {duration:.1f} seconds. {length_hint}
-Use natural, spoken language. Simplify if needed while preserving meaning.
-
-{seg.text}"""
-            
-            # 使用 TranslateGemma 翻譯
-            translated = translator.translate(length_aware_prompt, source_lang, target_lang)
-            
-            # 清理可能的額外標記（如果模型輸出了我們的 prompt 部分）
-            # TranslateGemma 應該會正確處理，但以防萬一
-            if "[DUBBING MODE]" in translated:
-                # 模型可能把我們的 prompt 也輸出了，嘗試提取翻譯部分
-                translated = translated.split("\n")[-1].strip()
-            
+            # 直接翻譯原文（TranslateGemma 專為翻譯設計，不適合加入額外指令）
+            translated = translator.translate(seg.text, source_lang, target_lang)
             seg.translated_text = translated
         
         return segments
@@ -347,11 +319,26 @@ Use natural, spoken language. Simplify if needed while preserving meaning.
             # 燒錄字幕
             subtitle_escaped = subtitle_path.replace('\\', '/').replace(':', '\\:')
             
+            # 字幕樣式設定：
+            # - FontSize=12: 較小字體，適合直式影片
+            # - WrapStyle=1: 按字元換行（避免文字超出畫面）
+            # - Alignment=2: 底部置中
+            # 注意：不設定 MarginL/R 讓文字自動適應畫面寬度
+            subtitle_style = (
+                "FontSize=12,"
+                "PrimaryColour=&HFFFFFF,"
+                "OutlineColour=&H000000,"
+                "Outline=2,"
+                "MarginV=15,"
+                "WrapStyle=1,"
+                "Alignment=2"
+            )
+            
             cmd = [
                 'ffmpeg', '-y',
                 '-i', video_path,
                 '-i', dubbed_audio_path,
-                '-vf', f"subtitles='{subtitle_escaped}':force_style='FontSize=18,PrimaryColour=&HFFFFFF,OutlineColour=&H000000,Outline=2'",
+                '-vf', f"subtitles='{subtitle_escaped}':force_style='{subtitle_style}'",
                 '-c:v', 'libx264', '-preset', 'fast', '-crf', '23',
                 '-map', '0:v:0',
                 '-map', '1:a:0',
