@@ -1,0 +1,25 @@
+[project]
+name = "translate-gemma"
+version = "0.1.0"
+description = "A powerful translation tool based on Google TranslateGemma model, featuring text, image, PDF, and real-time voice translation."
+authors = [
+    {name = "User", email = "user@example.com"},
+]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "gradio",
+    "ollama",
+    "pytesseract",
+    "Pillow",
+    "PyMuPDF",
+    "faster-whisper",
+    "edge-tts",
+    "numpy"
+]
+
+[project.urls]
+Repository = "https://github.com/dofliu/transGemma"
+
+[tool.setuptools]
+packages = ["translateGemma"]
