@@ -184,10 +184,18 @@ TranslateGemma 支援 **Model Context Protocol (MCP)**，可供 **Claude Desktop
 
 ### ⭐ Planned Features / 規劃中功能
 
-* **Translation History / 翻譯歷史記錄**: Local storage for past translations.
+* ~~**Translation History / 翻譯歷史記錄**~~: ✅ Completed (`history.py`)
+* ~~**API Mode / API 模式**~~: ✅ Completed (`api.py`)
+* ~~**MCP Server**~~: ✅ Completed (`mcp_server.py`)
 * **Batch Translation / 批次翻譯**: Process multiple files at once.
-* **API Mode / API 模式**: Expose translation services via REST API for external integration.
 * **Performance Optimization / 效能優化**: Further optimization for local inference speed.
+
+### 🌐 Multi-Platform Integration / 多平台整合 (Future)
+
+* **Browser Extension / 瀏覽器擴充套件**: Chrome/Edge extension for in-page translation, similar to Immersive Translate.
+* **Windows System Tray Tool / Windows 托盤工具**: Global hotkey (`Ctrl+Alt+T`), clipboard monitoring, floating translation window.
+* **Enhanced MCP Tools / 強化 MCP 工具**: Add `translate_pdf`, `translate_clipboard`, `get_supported_languages` tools.
+* **PDF Reader Integration / PDF 閱讀器整合**: Integration with Zotero, SumatraPDF, or built-in reader.
 
 ---
 
