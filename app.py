@@ -172,6 +172,9 @@ def translate_voice(audio, source_lang: str, target_lang: str):
 # ========== 影片翻譯功能 ==========
 from video_dubber import VideoDubber
 
+# ========== 會議摘要功能 ==========
+from meeting_summarizer import MeetingSummarizer, SUMMARY_TYPES
+
 # 全域影片處理器
 video_dubber_instance = None
 
@@ -936,6 +939,231 @@ def create_ui():
                 > - 建議先測試短影片（5 分鐘內）
                 > - 需要系統已安裝 ffmpeg
                 > - 批次處理多語言時，所有生成的檔案會列在「批次輸出檔案」區域
+                """)
+            
+            # ========== 會議摘要分頁 ==========
+            with gr.TabItem("📋 會議摘要"):
+                gr.Markdown("### 會議摘要 - 從影片自動生成會議逐字稿與摘要")
+                
+                with gr.Row():
+                    with gr.Column(scale=1):
+                        meeting_video_upload = gr.Video(
+                            label="📹 上傳會議影片",
+                            sources=["upload"]
+                        )
+                        
+                        meeting_language = gr.Dropdown(
+                            choices=[("🔍 自動偵測", "auto")] + language_choices,
+                            value="auto",
+                            label="會議語言"
+                        )
+                        
+                        summary_type_selector = gr.CheckboxGroup(
+                            choices=[
+                                ("📄 完整摘要", "full_summary"),
+                                ("📝 會議重點", "key_points"),
+                                ("✅ 待辦事項", "action_items"),
+                                ("📋 決議事項", "decisions")
+                            ],
+                            value=["full_summary"],
+                            label="摘要類型（可多選）"
+                        )
+                        
+                        with gr.Accordion("⚙️ AI 設定", open=False):
+                            ai_backend_selector = gr.Radio(
+                                choices=[
+                                    ("🏠 Ollama 本地模型", "ollama"),
+                                    ("☁️ Gemini API", "gemini")
+                                ],
+                                value="ollama",
+                                label="AI 後端"
+                            )
+                            
+                            ollama_model_selector = gr.Dropdown(
+                                choices=[
+                                    ("qwen3:4b (快速)", "qwen3:4b"),
+                                    ("ministral-3:8b (高品質)", "ministral-3:8b"),
+                                    ("qwen3-v1:8b (高品質)", "qwen3-v1:8b")
+                                ],
+                                value="qwen3:4b",
+                                label="Ollama 模型",
+                                visible=True
+                            )
+                            
+                            gemini_api_key_input = gr.Textbox(
+                                label="Gemini API Key",
+                                type="password",
+                                placeholder="輸入您的 Gemini API Key...",
+                                visible=False
+                            )
+                        
+                        meeting_process_btn = gr.Button("🚀 開始處理", variant="primary", size="lg")
+                    
+                    with gr.Column(scale=2):
+                        meeting_status = gr.Textbox(
+                            label="處理狀態",
+                            value="等待上傳影片...",
+                            interactive=False,
+                            lines=2
+                        )
+                        
+                        meeting_progress = gr.Slider(
+                            minimum=0,
+                            maximum=100,
+                            value=0,
+                            label="處理進度",
+                            interactive=False
+                        )
+                        
+                        with gr.Tabs():
+                            with gr.TabItem("📝 逐字稿"):
+                                transcript_output = gr.Textbox(
+                                    label="會議逐字稿（帶時間戳）",
+                                    lines=15,
+                                    interactive=False
+                                )
+                            
+                            with gr.TabItem("📄 會議摘要"):
+                                summary_output = gr.Markdown(
+                                    value="*等待處理...*"
+                                )
+                        
+                        with gr.Row():
+                            download_transcript_btn = gr.Button("📥 下載逐字稿", size="sm")
+                            download_summary_btn = gr.Button("📥 下載摘要", size="sm")
+                        
+                        transcript_file = gr.File(label="逐字稿檔案", visible=False)
+                        summary_file = gr.File(label="摘要檔案", visible=False)
+                
+                # AI 後端切換事件
+                def toggle_ai_settings(backend):
+                    return (
+                        gr.update(visible=(backend == "ollama")),
+                        gr.update(visible=(backend == "gemini"))
+                    )
+                
+                ai_backend_selector.change(
+                    fn=toggle_ai_settings,
+                    inputs=[ai_backend_selector],
+                    outputs=[ollama_model_selector, gemini_api_key_input]
+                )
+                
+                # 會議摘要處理函數
+                def process_meeting_summary(video, language, summary_types, 
+                                            ai_backend, ollama_model, gemini_key,
+                                            progress=gr.Progress()):
+                    if video is None:
+                        return "請先上傳影片", 0, "", "*請先上傳影片*"
+                    
+                    if not summary_types:
+                        summary_types = ["full_summary"]
+                    
+                    # 建立摘要器
+                    summarizer = MeetingSummarizer(
+                        ai_backend=ai_backend,
+                        ollama_model=ollama_model,
+                        gemini_api_key=gemini_key
+                    )
+                    
+                    # 處理進度追蹤
+                    status_messages = []
+                    current_progress = 0
+                    transcript_text = ""
+                    summary_md = ""
+                    
+                    try:
+                        for update in summarizer.process_video_stream(
+                            video, language, summary_types
+                        ):
+                            stage = update.get("stage", "")
+                            prog = update.get("progress", 0) * 100
+                            msg = update.get("message", "")
+                            
+                            status_messages.append(msg)
+                            current_progress = prog
+                            
+                            # 更新 Gradio 進度
+                            progress(prog / 100, desc=msg)
+                            
+                            # 取得逐字稿
+                            if "transcript_with_time" in update:
+                                transcript_text = update["transcript_with_time"]
+                            
+                            # 取得部分摘要
+                            if "partial_summary" in update:
+                                for stype, content in update["partial_summary"].items():
+                                    type_name = SUMMARY_TYPES.get(stype, {}).get("name", stype)
+                                    summary_md += f"\n\n## {type_name}\n\n{content}"
+                            
+                            # 最終摘要
+                            if stage == "done" and "summary" in update:
+                                summary_md = ""
+                                for stype, content in update["summary"].items():
+                                    type_name = SUMMARY_TYPES.get(stype, {}).get("name", stype)
+                                    summary_md += f"## {type_name}\n\n{content}\n\n---\n\n"
+                        
+                        final_status = "✅ 處理完成！"
+                        
+                    except Exception as e:
+                        final_status = f"❌ 處理失敗: {str(e)}"
+                        summary_md = f"*處理過程中發生錯誤: {str(e)}*"
+                    
+                    return (
+                        final_status,
+                        current_progress,
+                        transcript_text,
+                        summary_md if summary_md else "*無摘要內容*"
+                    )
+                
+                # 下載逐字稿
+                def save_transcript(transcript_text):
+                    if not transcript_text:
+                        return None
+                    import tempfile
+                    temp_path = os.path.join(tempfile.gettempdir(), "meeting_transcript.txt")
+                    with open(temp_path, "w", encoding="utf-8") as f:
+                        f.write(transcript_text)
+                    return temp_path
+                
+                # 下載摘要
+                def save_summary(summary_md):
+                    if not summary_md or summary_md.startswith("*"):
+                        return None
+                    import tempfile
+                    temp_path = os.path.join(tempfile.gettempdir(), "meeting_summary.md")
+                    with open(temp_path, "w", encoding="utf-8") as f:
+                        f.write(summary_md)
+                    return temp_path
+                
+                # 綁定事件
+                meeting_process_btn.click(
+                    fn=process_meeting_summary,
+                    inputs=[
+                        meeting_video_upload, meeting_language, summary_type_selector,
+                        ai_backend_selector, ollama_model_selector, gemini_api_key_input
+                    ],
+                    outputs=[meeting_status, meeting_progress, transcript_output, summary_output]
+                )
+                
+                download_transcript_btn.click(
+                    fn=save_transcript,
+                    inputs=[transcript_output],
+                    outputs=[transcript_file]
+                )
+                
+                download_summary_btn.click(
+                    fn=save_summary,
+                    inputs=[summary_output],
+                    outputs=[summary_file]
+                )
+                
+                gr.Markdown("""
+                > **💡 使用說明**：
+                > - 上傳會議影片（支援 mp4, avi, mov, mkv, webm 等格式）
+                > - 選擇會議語言（自動偵測通常即可）
+                > - 選擇需要的摘要類型
+                > - AI 後端建議使用 Ollama 本地模型（免費），需要更好品質可切換到 Gemini API
+                > - 處理時間取決於影片長度，請耐心等待
                 """)
             
             # ========== 歷史記錄分頁 ==========

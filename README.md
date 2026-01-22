@@ -21,7 +21,8 @@
 * **📄 PDF Translation**: Extract text from PDF documents and translate them page by page.
 * **🎙️ Voice Translation**: Record voice, transcribe using **faster-whisper**, translate, and read aloud using **edge-tts**.
 * **⚡ Real-time Streaming Translation**: Live speech-to-text-to-translation pipeline with automatic audio playback for seamless communication.
-* **🎥 Video Translation & Dubbing** *(NEW)*: Download YouTube videos, generate subtitles, translate to multiple languages, and create dubbed videos with burned-in subtitles.
+* **🎥 Video Translation & Dubbing**: Download YouTube videos, generate subtitles, translate to multiple languages, and create dubbed videos with burned-in subtitles.
+* **📋 Meeting Summary** *(NEW)*: Upload meeting videos, transcribe with Whisper STT, and generate AI-powered meeting summaries (supports Ollama local models and Gemini API).
 
 ### 🛠️ Tech Stack
 
@@ -104,7 +105,8 @@ Add the following configuration to your MCP settings (e.g., `claude_desktop_conf
 * **📄 PDF 翻譯**：從 PDF 文件中提取文字，支援逐頁翻譯與進度顯示。
 * **🎙️ 語音翻譯**：錄製語音，使用 **faster-whisper** 辨識，翻譯後透過 **edge-tts** 朗讀。
 * **⚡ 即時串流翻譯**：即時接收麥克風輸入，邊說邊譯，並自動播放翻譯語音，實現無縫溝通。
-* **🎥 影片翻譯與配音** *(新功能)*：下載 YouTube 影片，生成字幕，翻譯成多種語言，並製作帶有燒錄字幕的配音影片。
+* **🎥 影片翻譯與配音**：下載 YouTube 影片，生成字幕，翻譯成多種語言，並製作帶有燒錄字幕的配音影片。
+* **📋 會議摘要** *(新功能)*：上傳會議影片，使用 Whisper STT 語音辨識生成逐字稿，並透過 AI 自動生成會議摘要（支援 Ollama 本地模型與 Gemini API）。
 
 ### 🛠️ 技術架構
 
