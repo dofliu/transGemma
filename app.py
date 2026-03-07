@@ -17,20 +17,20 @@ from translator import translator
 from languages import LANGUAGES, COMMON_LANGUAGES, get_language_info
 
 # ============ 隞撣豢 ============
-TITLE = "?? TranslateGemma 蝧餉陌撌亙"
+TITLE = "TranslateGemma 多語翻譯助手"
 DESCRIPTION = """
-?箸 Google TranslateGemma 璅∪???隤?蝧餉陌撌亙嚗??55 蝔株?閮鈭陌??
+支援文字、圖片、PDF、語音、即時串流、影片翻譯與會議摘要。
 
-**??寡**嚗?
-- ??擃?鞈芣??函蕃霅?
-- ?儭?????霅?蕃霅?
-- ?? ?舀 55 蝔株?閮
-- ??銝脫?頛詨?單?憿舐內
+**功能特色：**
+- 文字翻譯（55+ 語言）
+- 圖片 OCR 與翻譯
+- PDF 逐頁翻譯
+- 語音辨識與翻譯（含 TTS）
 """
 
 
 def get_dropdown_choices():
-    """??隤?銝??詨?賊?"""
+    """取得語言下拉選單（常用語言優先）"""
     choices = []
     
     # 撣貊隤?
@@ -56,13 +56,13 @@ from history import history_manager
 def translate_text(text: str, source_lang: str, target_lang: str, glossary_text: str = "", style_guide: str = ""):
     """??蝧餉陌嚗葡瘚?"""
     if not text.strip():
-        yield "隢撓?亥?蝧餉陌??摮?.."
+        yield "請先輸入要翻譯的文字。"
         return
     
     src_info = get_language_info(source_lang)
     tgt_info = get_language_info(target_lang)
     
-    yield f"?? 蝧餉陌銝?.. ({src_info[0]} ??{tgt_info[0]})\n"
+    yield f"翻譯中...（{src_info[0]} -> {tgt_info[0]}）\n"
     
     full_translation = ""
     for result in translator.translate_stream(
@@ -92,7 +92,7 @@ def translate_text(text: str, source_lang: str, target_lang: str, glossary_text:
 def translate_image(image, source_lang: str, target_lang: str):
     """Translate text from image via OCR and model translation."""
     if image is None:
-        yield "隢??喳???.."
+        yield "請先上傳圖片。"
         return
     
     full_result = ""
@@ -118,7 +118,7 @@ def translate_image(image, source_lang: str, target_lang: str):
 def translate_pdf(pdf_file, source_lang: str, target_lang: str):
     """PDF ?辣蝧餉陌"""
     if pdf_file is None:
-        yield "隢???PDF ?辣..."
+        yield "請先上傳 PDF 檔案。"
         return
     
     full_result = ""
@@ -142,7 +142,7 @@ import asyncio
 def translate_voice(audio, source_lang: str, target_lang: str):
     """Speech translation pipeline: STT -> translate -> TTS."""
     if audio is None:
-        return "隢?鋆賣?銝?單?...", "", None
+        return "請先提供語音輸入。", "", None
     
     # 1. 隤颲刻? (STT)
     recognized_text, detected_lang = translator.speech_to_text(audio, source_lang)
@@ -151,7 +151,7 @@ def translate_voice(audio, source_lang: str, target_lang: str):
         return recognized_text, "", None
     
     if not recognized_text:
-        return "?? ?⊥?霅隤?批捆", "", None
+        return "未辨識到可用語音內容。", "", None
     
     # 2. 蝧餉陌??
     translated_text = translator.translate(recognized_text, source_lang, target_lang)
@@ -430,7 +430,7 @@ def process_stream_chunk(audio_chunk, source_lang: str, target_lang: str, silenc
     except Exception as e:
         print(f"銝脫????航炊: {e}")
     
-    status = "??畾菔??摰?嚗匱蝥牧閰?.."
+    status = "已完成本段即時翻譯，請繼續說話..."
     return stream_state.full_transcript.strip(), stream_state.full_translation.strip(), status, tts_audio_path
 
 
@@ -438,7 +438,7 @@ def reset_stream_state():
     """Reset streaming state."""
     global stream_state
     stream_state = StreamState()
-    return "", "", "撌脤?蝵殷?皞????", None
+    return "", "", "已重設即時翻譯狀態。", None
 
 
 def swap_languages(source: str, target: str):
@@ -448,18 +448,18 @@ def swap_languages(source: str, target: str):
 
 # ============ 甇瑕閮?隞 ============
 def create_history_tab():
-    with gr.TabItem("?? 甇瑕閮?"):
+    with gr.TabItem("歷史紀錄"):
         with gr.Row():
-            refresh_btn = gr.Button("?? ??渡?", size="sm")
-            clear_btn = gr.Button("??儭?皜征閮?", size="sm", variant="stop")
+            refresh_btn = gr.Button("重新整理", size="sm")
+            clear_btn = gr.Button("清空全部", size="sm", variant="stop")
             filter_type = gr.Dropdown(
                 choices=["All", "text", "image", "pdf", "voice", "video", "video_batch"],
                 value="All",
-                label="蝭拚憿?"
+                label="類型篩選"
             )
         
         history_table = gr.Dataframe(
-            headers=["ID", "??", "憿?", "靘?隤?", "?格?隤?", "???批捆", "蝧餉陌蝯?"],
+            headers=["ID", "類型", "時間", "來源語言", "目標語言", "原文", "譯文"],
             datatype=["number", "str", "str", "str", "str", "str", "str"],
             interactive=False,
             wrap=True
@@ -517,34 +517,34 @@ def create_ui():
         
         with gr.Tabs():
             # ========== ??蝧餉陌?? ==========
-            with gr.TabItem("?? ??蝧餉陌"):
+            with gr.TabItem("文字翻譯"):
                 with gr.Row():
                     source_lang = gr.Dropdown(
                         choices=language_choices,
                         value="en_US",
-                        label="靘?隤?",
+                        label="來源語言",
                         scale=2
                     )
                     
-                    swap_btn = gr.Button("??", elem_classes="swap-btn", scale=0)
+                    swap_btn = gr.Button("交換", elem_classes="swap-btn", scale=0)
                     
                     target_lang = gr.Dropdown(
                         choices=language_choices,
                         value="zh_TW",
-                        label="?格?隤?",
+                        label="目標語言",
                         scale=2
                     )
                 
                 with gr.Row():
                     input_text = gr.Textbox(
-                        label="頛詨??",
-                        placeholder="隢撓?亥?蝧餉陌??摮?..",
+                        label="輸入文字",
+                        placeholder="請輸入要翻譯的內容...",
                         lines=8,
                         scale=1
                     )
                     
                     output_text = gr.Textbox(
-                        label="蝧餉陌蝯?",
+                        label="翻譯結果",
                         lines=8,
                         scale=1,
                         interactive=False
@@ -562,7 +562,7 @@ def create_ui():
                     )
 
                 
-                translate_btn = gr.Button("?? 蝧餉陌", variant="primary", size="lg")
+                translate_btn = gr.Button("開始翻譯", variant="primary", size="lg")
                 
                 # 蝬?鈭辣
                 translate_btn.click(
@@ -585,12 +585,12 @@ def create_ui():
                 )
             
             # ========== ??蝧餉陌?? ==========
-            with gr.TabItem("?儭???蝧餉陌"):
+            with gr.TabItem("圖片翻譯"):
                 gr.Markdown("### 上傳圖片後，使用 Tesseract OCR 進行辨識與翻譯")
                 
                 with gr.Row():
                     image_input = gr.Image(
-                        label="銝??",
+                        label="上傳圖片",
                         type="filepath",
                         scale=1
                     )
@@ -604,15 +604,15 @@ def create_ui():
                 
                 with gr.Row():
                     image_source_lang = gr.Dropdown(
-                        choices=[("?? ?芸??菜葫", "auto")] + language_choices,
+                        choices=[("自動偵測", "auto")] + language_choices,
                         value="auto",
-                        label="????隤?"
+                        label="來源語言"
                     )
                     
                     image_target_lang = gr.Dropdown(
                         choices=language_choices,
                         value="zh_TW",
-                        label="蝧餉陌?格?隤?"
+                        label="目標語言"
                     )
                     
                     image_translate_btn = gr.Button("OCR 並翻譯", variant="primary")
@@ -624,19 +624,19 @@ def create_ui():
                 )
             
             # ========== PDF 蝧餉陌?? ==========
-            with gr.TabItem("?? PDF 蝧餉陌"):
+            with gr.TabItem("PDF 翻譯"):
                 gr.Markdown("### 上傳 PDF 文件後，可逐頁翻譯內容")
                 
                 with gr.Row():
                     pdf_input = gr.File(
-                        label="銝 PDF",
+                        label="上傳 PDF",
                         file_types=[".pdf"],
                         type="filepath",
                         scale=1
                     )
                     
                     pdf_output = gr.Textbox(
-                        label="蝧餉陌蝯?",
+                        label="翻譯結果",
                         lines=15,
                         scale=2,
                         interactive=False
@@ -646,16 +646,16 @@ def create_ui():
                     pdf_source_lang = gr.Dropdown(
                         choices=language_choices,
                         value="en_US",
-                        label="PDF ??隤?"
+                        label="PDF 來源語言"
                     )
                     
                     pdf_target_lang = gr.Dropdown(
                         choices=language_choices,
                         value="zh_TW",
-                        label="蝧餉陌?格?隤?"
+                        label="目標語言"
                     )
                     
-                    pdf_translate_btn = gr.Button("?? 蝧餉陌 PDF", variant="primary")
+                    pdf_translate_btn = gr.Button("翻譯 PDF", variant="primary")
                 
                 pdf_translate_btn.click(
                     fn=translate_pdf,
@@ -664,27 +664,27 @@ def create_ui():
                 )
                 
                 gr.Markdown("""
-                > **? ?內**嚗?
-                > - PDF 蝧餉陌????嚗之??隞園?頛??
-                > - ?桀??舀????PDF嚗??? PDF ?航?⊥?甇?Ⅱ????
-                > - 憒?蝧餉陌????PDF嚗????頧??敺蝙?典??蕃霅臬???
+                > **提示：**
+                > - PDF 翻譯採逐頁處理，文件越大耗時越長。
+                > - 建議先測試 1-2 頁，確認品質後再翻完整文件。
+                > - 若為掃描 PDF，先確保 OCR 可讀性。
                 """)
             
             # ========== 隤蝧餉陌?? ==========
-            with gr.TabItem("??儭?隤蝧餉陌"):
-                gr.Markdown("### ?ˊ隤???喲瑼??芸?颲刻??蕃霅臭蒂??")
+            with gr.TabItem("語音翻譯"):
+                gr.Markdown("### 錄音或上傳音檔，系統會先辨識再翻譯")
                 
                 with gr.Row():
                     voice_source_lang = gr.Dropdown(
-                        choices=[("?? ?芸??菜葫", "auto")] + language_choices,
+                        choices=[("自動偵測", "auto")] + language_choices,
                         value="auto",
-                        label="隤隤?"
+                        label="來源語言"
                     )
                     
                     voice_target_lang = gr.Dropdown(
                         choices=language_choices,
                         value="zh_TW",
-                        label="蝧餉陌?格?隤?"
+                        label="目標語言"
                     )
                 
                 with gr.Row():
@@ -695,25 +695,25 @@ def create_ui():
                     )
                     
                     audio_output = gr.Audio(
-                        label="?? 蝧餉陌隤頛詨",
+                        label="語音輸出（TTS）",
                         type="filepath",
                         interactive=False
                     )
                 
                 with gr.Row():
                     recognized_text = gr.Textbox(
-                        label="?? 隤颲刻?蝯?",
+                        label="語音辨識文字",
                         lines=3,
                         interactive=False
                     )
                     
                     translated_text = gr.Textbox(
-                        label="?? 蝧餉陌蝯?",
+                        label="翻譯文字",
                         lines=3,
                         interactive=False
                     )
                 
-                voice_translate_btn = gr.Button("??儭?蝧餉陌隤", variant="primary", size="lg")
+                voice_translate_btn = gr.Button("語音翻譯", variant="primary", size="lg")
                 
                 voice_translate_btn.click(
                     fn=translate_voice,
@@ -722,27 +722,27 @@ def create_ui():
                 )
                 
                 gr.Markdown("""
-                > **? ?內**嚗?
-                > - 擐活雿輻??銝?隤颲刻?璅∪?嚗? 150MB嚗?
-                > - 隤頛詨雿輻 Microsoft Edge 蟡?蝬脰楝隤
-                > - ?舀?????wav/mp3 蝑撘?
+                > **提示：**
+                > - 建議音檔小於 150MB。
+                > - TTS 使用 Edge 語音服務。
+                > - 支援常見 wav/mp3。
                 """)
             
             # ========== ?單?蝧餉陌?? ==========
-            with gr.TabItem("???單?蝧餉陌"):
+            with gr.TabItem("即時語音翻譯"):
                 gr.Markdown("### 即時語音翻譯 - 邊說邊翻")
                 
                 with gr.Row():
                     stream_source_lang = gr.Dropdown(
-                        choices=[("?? ?芸??菜葫", "auto")] + language_choices,
+                        choices=[("自動偵測", "auto")] + language_choices,
                         value="en_US",
-                        label="隤隤?"
+                        label="來源語言"
                     )
                     
                     stream_target_lang = gr.Dropdown(
                         choices=language_choices,
                         value="zh_TW",
-                        label="蝧餉陌?格?隤?"
+                        label="目標語言"
                     )
                 
                 with gr.Row():
@@ -751,13 +751,13 @@ def create_ui():
                         maximum=0.10,
                         value=0.02,
                         step=0.005,
-                        label="?? ??瑼餃潘??啣?頛?航矽擃?",
-                        info="?潸?擃??閬摰??摰?"
+                        label="靜音判定閾值（越高越容易判定為靜音）",
+                        info="可依環境噪音調整"
                     )
                 
                 stream_status = gr.Textbox(
                     label="即時狀態",
-                    value="皞????...",
+                    value="等待音訊輸入...",
                     interactive=False
                 )
                 
@@ -765,30 +765,30 @@ def create_ui():
                     sources=["microphone"],
                     streaming=True,
                     type="numpy",
-                    label="? ?單??嚗?蝥牧閰梧?"
+                    label="即時語音輸入（麥克風）"
                 )
                 
                 with gr.Row():
                     stream_transcript = gr.Textbox(
-                        label="?? ?單?隤颲刻?",
+                        label="即時辨識文字",
                         lines=6,
                         interactive=False
                     )
                     
                     stream_translation = gr.Textbox(
-                        label="?? ?單?蝧餉陌蝯?",
+                        label="即時翻譯文字",
                         lines=6,
                         interactive=False
                     )
                 
                 stream_tts_output = gr.Audio(
-                    label="?? 蝧餉陌隤嚗??橘?",
+                    label="即時翻譯語音輸出",
                     type="filepath",
                     autoplay=True,
                     interactive=False
                 )
                 
-                reset_btn = gr.Button("?? ?蔭", variant="secondary")
+                reset_btn = gr.Button("重設", variant="secondary")
                 
                 # 銝脫???
                 stream_audio.stream(
@@ -803,19 +803,19 @@ def create_ui():
                 )
                 
                 gr.Markdown("""
-                > **?? 瘜冽?鈭?**嚗?
-                > - ?? 2-3 蝘辣?莎?蝑?畾菔蝯?????
-                > - 隤芸?銝畾菔店敺?雿???蝟餌絞??儘霅?
-                > - 暺???蝵柴?蝛箸??摰寥??圈?憪?
+                > **使用建議：**
+                > - 每段 2-3 秒語音有最佳效果。
+                > - 背景噪音過高時，請提高靜音閾值。
+                > - 網路或模型忙碌時可能延遲。
                 """)
             
             # ========== 敶梁?蝧餉陌?? ==========
-            with gr.TabItem("? 敶梁?蝧餉陌"):
+            with gr.TabItem("影片翻譯"):
                 gr.Markdown("### 影片翻譯與配音 - 支援多語目標")
                 
                 with gr.Row():
                     video_url_input = gr.Textbox(
-                        label="YouTube 蝬脣?",
+                        label="YouTube 連結",
                         placeholder="https://www.youtube.com/watch?v=...",
                         lines=1
                     )
@@ -828,17 +828,17 @@ def create_ui():
                 
                 with gr.Row():
                     video_source_lang = gr.Dropdown(
-                        choices=[("?? ?芸??菜葫", "auto")] + language_choices,
+                        choices=[("自動偵測", "auto")] + language_choices,
                         value="auto",
-                        label="敶梁?隤?"
+                        label="來源語言"
                     )
                     video_target_lang = gr.Dropdown(
                         choices=language_choices,
                         value="zh_TW",
-                        label="蝧餉陌?格?隤?",
+                        label="目標語言（可多選）",
                         multiselect=True,
                         max_choices=5,
-                        info="?舫????閮嚗?憭????脰??寞活??"
+                        info="多選時會啟用批次處理"
                     )
                 
                 with gr.Row():
@@ -848,11 +848,11 @@ def create_ui():
                         info="啟用後會把字幕直接嵌入影片"
                     )
                 
-                video_process_btn = gr.Button("?? ????", variant="primary")
+                video_process_btn = gr.Button("開始處理", variant="primary")
                 
                 video_status = gr.Textbox(
                     label="處理狀態",
-                    value="蝑???...",
+                    value="等待任務...",
                     interactive=False,
                     lines=8,
                     max_lines=15
@@ -860,28 +860,28 @@ def create_ui():
                 
                 with gr.Row():
                     with gr.Column():
-                        gr.Markdown("#### ??敶梁?")
-                        original_video_output = gr.Video(label="??敶梁??汗")
-                        original_srt_output = gr.File(label="?? ??摮? (SRT)")
+                        gr.Markdown("#### 原始輸出")
+                        original_video_output = gr.Video(label="原始影片")
+                        original_srt_output = gr.File(label="原始字幕 (SRT)")
                     
                     with gr.Column():
                         gr.Markdown("#### 配音結果")
                         # 隤????詨嚗甈∟????嚗?
                         preview_lang_selector = gr.Dropdown(
                             choices=[],
-                            label="?? ???汗隤?",
+                            label="預覽語言",
                             visible=False,
                             interactive=True
                         )
-                        dubbed_video_output = gr.Video(label="?敶梁??汗")
-                        translated_srt_output = gr.File(label="?? 蝧餉陌摮? (SRT)")
+                        dubbed_video_output = gr.Video(label="配音影片")
+                        translated_srt_output = gr.File(label="翻譯字幕 (SRT)")
                 
                 # ?冽?脣??寞活蝯??????
                 batch_results_state = gr.State(value=None)
                 
-                gr.Markdown("#### ? ?寞活頛詨瑼?")
+                gr.Markdown("#### 批次輸出檔案")
                 batch_files_output = gr.File(
-                    label="?????瑼?嚗?隤???????",
+                    label="批次輸出（可多檔下載）",
                     file_count="multiple"
                 )
                 
@@ -930,12 +930,12 @@ def create_ui():
                         result[3],  # translated_srt
                         result[4],  # status
                         batch_files,  # batch_files
-                        gr.update(choices=lang_choices, visible=lang_visible, value=selected_lang),  # 隤??豢???
+                        gr.update(choices=lang_choices, visible=lang_visible, value=selected_lang),  # 語言選單
                         batch_data  # ?寞活蝯????
                     )
                 
                 def switch_preview_language(selected_lang, batch_data):
-                    """???汗隤???啣蔣??摮?"""
+                    """依語言切換預覽結果"""
                     if not batch_data or not selected_lang:
                         return None, None
                     
@@ -956,49 +956,49 @@ def create_ui():
                 )
                 
                 gr.Markdown("""
-                > **?? 瘜冽?鈭?**嚗?
-                > - 敶梁????閬??瑟???銝??儘霅蕃霅胯???
-                > - 撱箄降?葫閰衣敶梁?嚗? ???改?
-                > - ?閬頂蝯勗歇摰? ffmpeg
+                > **影片翻譯提示：**
+                > - 影片長度與解析度會影響處理時間。
+                > - 需要本機可用的 ffmpeg。
+                > - 批次處理會輸出多個語言版本。
                 > - ?寞活??憭?閮???????瑼????具甈∟撓?箸?獢???
                 """)
             
             # ========== ?降???? ==========
-            with gr.TabItem("?? ?降??"):
-                gr.Markdown("### ?降?? - 敺蔣?????霅圈?蝔輯???")
+            with gr.TabItem("會議摘要"):
+                gr.Markdown("### 上傳會議影片，自動產生逐字稿與摘要")
                 
                 with gr.Row():
                     with gr.Column(scale=1):
                         meeting_video_upload = gr.Video(
-                            label="? 銝?降敶梁?",
+                            label="上傳會議影片",
                             sources=["upload"]
                         )
                         
                         meeting_language = gr.Dropdown(
-                            choices=[("?? ?芸??菜葫", "auto")] + language_choices,
+                            choices=[("自動偵測", "auto")] + language_choices,
                             value="auto",
-                            label="?降隤?"
+                            label="會議語言"
                         )
                         
                         summary_type_selector = gr.CheckboxGroup(
                             choices=[
-                                ("?? 摰??", "full_summary"),
-                                ("?? ?降??", "key_points"),
-                                ("??敺齒鈭?", "action_items"),
-                                ("?? 瘙箄降鈭?", "decisions")
+                                ("完整摘要", "full_summary"),
+                                ("重點整理", "key_points"),
+                                ("行動項目", "action_items"),
+                                ("決策事項", "decisions")
                             ],
                             value=["full_summary"],
                             label="摘要輸出類型",
                         )
                         
-                        with gr.Accordion("?? AI 閮剖?", open=False):
+                        with gr.Accordion("AI 設定", open=False):
                             ai_backend_selector = gr.Radio(
                                 choices=[
-                                    ("?? Ollama ?砍璅∪?", "ollama"),
-                                    ("?? Gemini API", "gemini")
+                                    ("Ollama 本地模型", "ollama"),
+                                    ("Gemini API", "gemini")
                                 ],
                                 value="ollama",
-                                label="AI 敺垢"
+                                label="AI 後端"
                             )
                             
                             ollama_model_selector = gr.Dropdown(
@@ -1008,23 +1008,23 @@ def create_ui():
                                     ("qwen3-v1:8b (擃?鞈?", "qwen3-v1:8b")
                                 ],
                                 value="qwen3:4b",
-                                label="Ollama 璅∪?",
+                                label="Ollama 模型",
                                 visible=True
                             )
                             
                             gemini_api_key_input = gr.Textbox(
                                 label="Gemini API Key",
                                 type="password",
-                                placeholder="頛詨?函? Gemini API Key...",
+                                placeholder="請輸入 Gemini API Key...",
                                 visible=False
                             )
                         
-                        meeting_process_btn = gr.Button("?? ????", variant="primary", size="lg")
+                        meeting_process_btn = gr.Button("開始摘要", variant="primary", size="lg")
                     
                     with gr.Column(scale=2):
                         meeting_status = gr.Textbox(
                             label="處理狀態",
-                            value="蝑?銝敶梁?...",
+                            value="等待影片上傳...",
                             interactive=False,
                             lines=2
                         )
@@ -1033,7 +1033,7 @@ def create_ui():
                             minimum=0,
                             maximum=100,
                             value=0,
-                            label="???脣漲",
+                            label="處理進度",
                             interactive=False
                         )
                         
@@ -1045,17 +1045,17 @@ def create_ui():
                                     interactive=False
                                 )
                             
-                            with gr.TabItem("?? ?降??"):
+                            with gr.TabItem("摘要結果"):
                                 summary_output = gr.Markdown(
-                                    value="*蝑???...*"
+                                    value="*尚無摘要內容*"
                                 )
                         
                         with gr.Row():
                             download_transcript_btn = gr.Button("下載逐字稿", size="sm")
-                            download_summary_btn = gr.Button("? 銝???", size="sm")
+                            download_summary_btn = gr.Button("下載摘要", size="sm")
                         
                         transcript_file = gr.File(label="逐字稿檔案", visible=False)
-                        summary_file = gr.File(label="??瑼?", visible=False)
+                        summary_file = gr.File(label="摘要檔案", visible=False)
                 
                 # AI 敺垢??鈭辣
                 def toggle_ai_settings(backend):
@@ -1075,7 +1075,7 @@ def create_ui():
                                             ai_backend, ollama_model, gemini_key,
                                             progress=gr.Progress()):
                     if video is None:
-                        return "隢?銝敶梁?", 0, "", "*隢?銝敶梁?*"
+                        return "請先上傳會議影片", 0, "", "*請先上傳會議影片*"
                     
                     if not summary_types:
                         summary_types = ["full_summary"]
@@ -1127,14 +1127,14 @@ def create_ui():
                         final_status = "處理完成。"
                         
                     except Exception as e:
-                        final_status = f"????憭望?: {str(e)}"
-                        summary_md = f"*????銝剔?隤? {str(e)}*"
+                        final_status = f"處理失敗：{str(e)}"
+                        summary_md = f"*摘要產生失敗：{str(e)}*"
                     
                     return (
                         final_status,
                         current_progress,
                         transcript_text,
-                        summary_md if summary_md else "*?⊥?閬摰?"
+                        summary_md if summary_md else "*尚未產生摘要*"
                     )
                 
                 # 銝???蝔?
@@ -1180,11 +1180,11 @@ def create_ui():
                 )
                 
                 gr.Markdown("""
-                > **? 雿輻隤芣?**嚗?
-                > - 銝?降敶梁?嚗??mp4, avi, mov, mkv, webm 蝑撘?
-                > - ?豢??降隤?嚗?皜祇虜?喳嚗?
-                > - ?豢??閬???憿?
-                > - AI 敺垢撱箄降雿輻 Ollama ?砍璅∪?嚗?鞎鳴?嚗?閬憟賢?鞈芸????Gemini API
+                > **支援格式：**
+                > - 影片：mp4, avi, mov, mkv, webm
+                > - 可選擇多種摘要類型。
+                > - AI 後端可選本地 Ollama 或 Gemini API。
+                > - 建議先用短片測試流程。
                 > - ?????捱?澆蔣?摨佗?隢?蝑?
                 """)
             
@@ -1192,26 +1192,26 @@ def create_ui():
             create_history_tab()
             
             # ========== ??? ==========
-            with gr.TabItem("?對? ?"):
+            with gr.TabItem("關於"):
                 gr.Markdown("""
-                ## ? TranslateGemma
+                ## TranslateGemma
                 
-                TranslateGemma ??Google ?箸 Gemma 3 璅∪?敺株矽??璆剔蕃霅舀芋??
+                TranslateGemma 是以 Gemma 系列模型為核心的多語翻譯工具。
                 
-                ### ?銵暺?
-                - ? ?箸 Gemma 3 ?嗆?嚗???SFT + RL 敺株矽
-                - ?? ??MetricX ??COMET22 閰葫銝剛”?曉??
-                - ?? ?舀 55 蝔株?閮鈭陌
-                - ?儭??舀????霅?蕃霅?
+                ### 特色
+                - 支援文字、圖片、PDF、語音、影片翻譯
+                - 支援即時語音翻譯與會議摘要
+                - 可擴充多模型與工作流程
+                - 支援 55+ 語言
                 
-                ### ?祆?璅∪?
-                - 璅∪??迂嚗translategemma`
-                - ?瑁??孵?嚗llama
-                - ?閬芋嚗?.3B (Q4_K_M ??)
+                ### 模型與執行
+                - 模型名稱：`translategemma`
+                - 推論平台：Ollama
+                - 建議先確認本機模型可正常回應
                 
-                ### ?舀隤?
-                蝜?銝剜??陛擃葉?????噸???正?剔???
-                蝢拙之?拇???????????陸?撠潭???摩??..蝑?55 蝔株?閮
+                ### 注意事項
+                若遇到翻譯品質不穩定，可調整提示詞、術語表與風格設定。
+                建議搭配小型回歸測試集持續驗證。
                 """)
         
         gr.Markdown("---")
