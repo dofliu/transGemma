@@ -28,6 +28,86 @@ DESCRIPTION = """
 - 語音辨識與翻譯（含 TTS）
 """
 
+APP_CSS = """
+:root {
+  --tg-primary: #e9782d;
+  --tg-secondary: #1f6feb;
+  --tg-bg: #f5f7fb;
+  --tg-surface: #ffffff;
+  --tg-text: #10213a;
+  --tg-muted: #64748b;
+}
+
+.gradio-container {
+  background:
+    radial-gradient(circle at 10% -10%, rgba(233, 120, 45, 0.12), transparent 32%),
+    radial-gradient(circle at 90% -20%, rgba(31, 111, 235, 0.14), transparent 34%),
+    var(--tg-bg);
+}
+
+.tg-hero {
+  background: linear-gradient(120deg, #0f172a 0%, #1f2937 45%, #1f6feb 100%);
+  color: #fff;
+  border-radius: 16px;
+  padding: 20px 24px;
+  margin-bottom: 16px;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.22);
+}
+
+.tg-hero * {
+  color: #ffffff !important;
+}
+
+.tg-hero h1 {
+  margin: 0 0 8px 0;
+  font-size: 30px;
+  letter-spacing: 0.2px;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+}
+
+.tg-hero p {
+  margin: 0;
+  opacity: 0.98;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.3);
+}
+
+.kpi-card {
+  background: var(--tg-surface) !important;
+  border: 1px solid #e5eaf3;
+  border-radius: 14px;
+  box-shadow: 0 8px 20px rgba(16, 33, 58, 0.05);
+}
+
+.kpi-card .prose {
+  margin: 0;
+}
+
+.kpi-card h3 {
+  margin-bottom: 6px;
+}
+
+.kpi-card p {
+  color: var(--tg-muted);
+}
+
+.section-card {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #e6ebf3;
+  border-radius: 14px;
+  padding: 8px;
+}
+
+.tabs .tab-nav button {
+  border-radius: 10px !important;
+  margin-right: 6px !important;
+}
+
+button.primary {
+  background: linear-gradient(120deg, var(--tg-primary) 0%, #f3a253 100%) !important;
+  border: none !important;
+}
+"""
+
 
 def get_dropdown_choices():
     """取得語言下拉選單（常用語言優先）"""
@@ -37,7 +117,7 @@ def get_dropdown_choices():
     for code in COMMON_LANGUAGES:
         if code in LANGUAGES:
             ch_name, en_name, locale = LANGUAGES[code]
-            choices.append((f"潃?{ch_name} ({en_name})", code))
+            choices.append((f"{ch_name} ({en_name})", code))
     
     # ?嗡?隤?
     other_langs = [(code, info) for code, info in LANGUAGES.items() 
@@ -507,15 +587,73 @@ def create_ui():
     """撱箇? Gradio 隞"""
     
     language_choices = get_dropdown_choices()
+
+    def get_dashboard_data():
+        records = history_manager.get_history(limit=500)
+        total = len(records)
+        type_counts = {}
+        for r in records:
+            t = r.get("type", "unknown")
+            type_counts[t] = type_counts.get(t, 0) + 1
+        text_count = type_counts.get("text", 0)
+        media_count = total - text_count
+        latest = records[0]["timestamp"].replace("T", " ")[:19] if records else "-"
+        table = []
+        for r in records[:10]:
+            table.append([
+                r["timestamp"].replace("T", " ")[:19],
+                r["type"],
+                r["source_lang"],
+                r["target_lang"],
+                (r["original_content"] or "")[:32],
+            ])
+        kpi_total = f"### {total}\n累積任務量"
+        kpi_text = f"### {text_count}\n文字翻譯任務"
+        kpi_media = f"### {media_count}\n多媒體任務"
+        kpi_latest = f"### {latest}\n最近一次執行"
+        return kpi_total, kpi_text, kpi_media, kpi_latest, table
     
     with gr.Blocks(
         title=TITLE,
+        css=APP_CSS,
     ) as demo:
-        
-        gr.Markdown(f"# {TITLE}")
-        gr.Markdown(DESCRIPTION)
+        gr.HTML(
+            f"""
+            <section class="tg-hero">
+              <h1>{TITLE}</h1>
+              <p>本地優先的全方位翻譯工作台：文字、文件、語音、影片、會議摘要一次完成。</p>
+            </section>
+            """
+        )
         
         with gr.Tabs():
+            with gr.TabItem("儀表板"):
+                with gr.Row():
+                    dashboard_refresh = gr.Button("更新儀表板", variant="secondary")
+
+                with gr.Row():
+                    kpi_total = gr.Markdown(elem_classes="kpi-card")
+                    kpi_text = gr.Markdown(elem_classes="kpi-card")
+                    kpi_media = gr.Markdown(elem_classes="kpi-card")
+                    kpi_latest = gr.Markdown(elem_classes="kpi-card")
+
+                gr.Markdown("### 最近任務")
+                recent_tasks = gr.Dataframe(
+                    headers=["時間", "類型", "來源語言", "目標語言", "原文摘要"],
+                    datatype=["str", "str", "str", "str", "str"],
+                    interactive=False,
+                    wrap=True,
+                )
+
+                dashboard_refresh.click(
+                    fn=get_dashboard_data,
+                    outputs=[kpi_total, kpi_text, kpi_media, kpi_latest, recent_tasks],
+                )
+                demo.load(
+                    fn=get_dashboard_data,
+                    outputs=[kpi_total, kpi_text, kpi_media, kpi_latest, recent_tasks],
+                )
+
             # ========== ??蝧餉陌?? ==========
             with gr.TabItem("文字翻譯"):
                 with gr.Row():

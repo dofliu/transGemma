@@ -1,25 +1,23 @@
-"""
-TranslateGemma 語言對照表
-==========================
-支援 55 種語言的名稱、英文名稱和語言代碼
+﻿"""
+Language metadata for TranslateGemma.
 """
 
-# 語言清單 (中文名稱, 英文名稱, 語言代碼)
+# (中文名稱, English name, locale)
 LANGUAGES = {
-    # 東亞語言
+    # East Asian
     "zh_TW": ("繁體中文", "Traditional Chinese", "zh-TW"),
     "zh_CN": ("簡體中文", "Simplified Chinese", "zh-CN"),
     "ja_JP": ("日文", "Japanese", "ja-JP"),
     "ko_KR": ("韓文", "Korean", "ko-KR"),
-    
-    # 歐洲語言
+
+    # European
     "en_US": ("英文", "English", "en-US"),
     "de_DE": ("德文", "German", "de-DE"),
     "fr_FR": ("法文", "French", "fr-FR"),
     "es_ES": ("西班牙文", "Spanish", "es-ES"),
     "it_IT": ("義大利文", "Italian", "it-IT"),
-    "pt_BR": ("葡萄牙文(巴西)", "Portuguese", "pt-BR"),
-    "pt_PT": ("葡萄牙文(葡萄牙)", "Portuguese", "pt-PT"),
+    "pt_BR": ("葡萄牙文（巴西）", "Portuguese", "pt-BR"),
+    "pt_PT": ("葡萄牙文（葡萄牙）", "Portuguese", "pt-PT"),
     "nl_NL": ("荷蘭文", "Dutch", "nl-NL"),
     "pl_PL": ("波蘭文", "Polish", "pl-PL"),
     "ru_RU": ("俄文", "Russian", "ru-RU"),
@@ -41,8 +39,8 @@ LANGUAGES = {
     "lv_LV": ("拉脫維亞文", "Latvian", "lv-LV"),
     "et_EE": ("愛沙尼亞文", "Estonian", "et-EE"),
     "is_IS": ("冰島文", "Icelandic", "is-IS"),
-    
-    # 亞洲語言
+
+    # South / Southeast Asian
     "vi_VN": ("越南文", "Vietnamese", "vi-VN"),
     "th_TH": ("泰文", "Thai", "th-TH"),
     "id_ID": ("印尼文", "Indonesian", "id-ID"),
@@ -50,64 +48,59 @@ LANGUAGES = {
     "tl_PH": ("菲律賓文", "Filipino", "fil-PH"),
     "hi_IN": ("印地文", "Hindi", "hi-IN"),
     "bn_IN": ("孟加拉文", "Bengali", "bn-IN"),
-    "ta_IN": ("泰米爾文", "Tamil", "ta-IN"),
+    "ta_IN": ("坦米爾文", "Tamil", "ta-IN"),
     "te_IN": ("泰盧固文", "Telugu", "te-IN"),
     "mr_IN": ("馬拉地文", "Marathi", "mr-IN"),
     "gu_IN": ("古吉拉特文", "Gujarati", "gu-IN"),
     "kn_IN": ("卡納達文", "Kannada", "kn-IN"),
     "ml_IN": ("馬拉雅拉姆文", "Malayalam", "ml-IN"),
     "pa_IN": ("旁遮普文", "Punjabi", "pa-IN"),
-    "ur_PK": ("烏爾都文", "Urdu", "ur-PK"),
-    
-    # 中東語言
+    "ur_PK": ("烏都文", "Urdu", "ur-PK"),
+
+    # Middle East
     "ar_SA": ("阿拉伯文", "Arabic", "ar-SA"),
     "he_IL": ("希伯來文", "Hebrew", "he-IL"),
     "fa_IR": ("波斯文", "Persian", "fa-IR"),
     "tr_TR": ("土耳其文", "Turkish", "tr-TR"),
-    
-    # 非洲語言
-    "sw_KE": ("斯瓦希里文(肯亞)", "Swahili", "sw-KE"),
-    "sw_TZ": ("斯瓦希里文(坦尚尼亞)", "Swahili", "sw-TZ"),
+
+    # African
+    "sw_KE": ("史瓦希里文（肯亞）", "Swahili", "sw-KE"),
+    "sw_TZ": ("史瓦希里文（坦尚尼亞）", "Swahili", "sw-TZ"),
     "zu_ZA": ("祖魯文", "Zulu", "zu-ZA"),
 }
 
-# 常用語言（用於介面優先顯示）
+# Common languages shown first in dropdown
 COMMON_LANGUAGES = [
     "zh_TW", "en_US", "ja_JP", "ko_KR", "zh_CN",
-    "de_DE", "fr_FR", "es_ES", "vi_VN", "th_TH"
+    "de_DE", "fr_FR", "es_ES", "vi_VN", "th_TH",
 ]
 
 
 def get_language_choices():
-    """取得語言選項清單（用於 Gradio Dropdown）"""
+    """Return Gradio dropdown choices with common languages first."""
     choices = []
-    
-    # 先加入常用語言
+
     for code in COMMON_LANGUAGES:
         if code in LANGUAGES:
-            ch_name, en_name, locale = LANGUAGES[code]
-            choices.append((f"⭐ {ch_name} ({en_name})", code))
-    
-    # 加入分隔線
-    choices.append(("─" * 20, None))
-    
-    # 再加入其他語言（按中文名稱排序）
-    other_langs = [(code, info) for code, info in LANGUAGES.items() 
-                   if code not in COMMON_LANGUAGES]
+            ch_name, en_name, _ = LANGUAGES[code]
+            choices.append((f"常用 {ch_name} ({en_name})", code))
+
+    choices.append(("-" * 20, None))
+
+    other_langs = [(code, info) for code, info in LANGUAGES.items() if code not in COMMON_LANGUAGES]
     other_langs.sort(key=lambda x: x[1][0])
-    
-    for code, (ch_name, en_name, locale) in other_langs:
+
+    for code, (ch_name, en_name, _) in other_langs:
         choices.append((f"{ch_name} ({en_name})", code))
-    
+
     return choices
 
 
 def get_language_info(code: str) -> tuple:
-    """取得語言資訊"""
+    """Return language metadata by code."""
     return LANGUAGES.get(code, ("Unknown", "Unknown", code))
 
 
-# Edge TTS 語音對照表
 EDGE_TTS_VOICES = {
     "zh_TW": "zh-TW-HsiaoChenNeural",
     "zh_CN": "zh-CN-XiaoxiaoNeural",
@@ -132,6 +125,5 @@ EDGE_TTS_VOICES = {
 
 
 def get_edge_tts_voice(lang_code: str) -> str:
-    """取得對應的 Edge TTS 語音名稱"""
+    """Return Edge TTS voice id by language code."""
     return EDGE_TTS_VOICES.get(lang_code, "en-US-JennyNeural")
-
