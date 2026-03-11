@@ -1,206 +1,146 @@
-# TranslateGemma 翻譯工具
+﻿# TranslateGemma
 
-[![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](https://www.python.org/)
-[![Gradio](https://img.shields.io/badge/Gradio-UI-orange)](https://gradio.app/)
-[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
+TranslateGemma 是一個本地優先（Local-first）的多語翻譯工作台，整合文字、圖片 OCR、PDF、語音、即時語音、影片翻譯與會議摘要功能。
 
-[English](#english) | [中文說明](#中文說明)
+## 主要功能
+- 文字翻譯：支援多語互譯，提供串流回傳。
+- 術語表與風格指南：可在文字翻譯頁提供自訂術語與文風指令。
+- 圖片翻譯：Tesseract OCR + 模型翻譯。
+- PDF 翻譯：逐頁擷取文字並翻譯。
+- 語音翻譯：STT -> 翻譯 -> TTS。
+- 即時語音翻譯：分段音訊偵測、即時辨識、即時翻譯與語音回播。
+- 影片翻譯與配音：支援 YouTube 連結或本地影片，多語批次輸出。
+- 會議摘要：上傳影片後產生逐字稿與摘要。
+- 使用紀錄：將任務寫入 SQLite 歷史紀錄。
 
----
+## 技術棧
+- UI: Gradio
+- Translation backend: Ollama (`translategemma`)
+- OCR: Tesseract + pytesseract
+- PDF: PyMuPDF
+- STT: faster-whisper
+- TTS: edge-tts
+- Video: yt-dlp + FFmpeg
+- API: FastAPI
+- MCP: FastMCP
 
-<a name="english"></a>
+## 系統需求
+- Python 3.10+
+- 可用的 Ollama 環境
+- 外部工具：Tesseract、FFmpeg
 
-## 🇬🇧 English Description
+## 快速開始
+1. 安裝相依
 
-**TranslateGemma** is a comprehensive translation tool powered by Google's **TranslateGemma** model (fine-tuned on Gemma 3). It provides a user-friendly web interface built with **Gradio** to support essential translation needs including text, images, PDF documents, and real-time voice.
+```bash
+pip install -r requirements.txt
+```
 
-### 🌟 Key Features
+2. 準備模型
 
-* **📝 Text Translation**: Support for 55 languages with high-quality output.
-* **🖼️ Image Translation**: Integrated OCR (Tesseract) to extract and translate text from images.
-* **📄 PDF Translation**: Extract text from PDF documents and translate them page by page.
-* **🎙️ Voice Translation**: Record voice, transcribe using **faster-whisper**, translate, and read aloud using **edge-tts**.
-* **⚡ Real-time Streaming Translation**: Live speech-to-text-to-translation pipeline with automatic audio playback for seamless communication.
-* **🎥 Video Translation & Dubbing**: Download YouTube videos, generate subtitles, translate to multiple languages, and create dubbed videos with burned-in subtitles.
-* **📋 Meeting Summary** *(NEW)*: Upload meeting videos, transcribe with Whisper STT, and generate AI-powered meeting summaries (supports Ollama local models and Gemini API).
+```bash
+ollama pull translategemma
+```
 
-### 🛠️ Tech Stack
+3. 啟動 Web UI
 
-* **LLM Backend**: Ollama (running `translategemma` model)
-* **Frontend**: Gradio
-* **OCR**: Tesseract + Pytesseract
-* **PDF Processing**: PyMuPDF (fitz)
-* **Speech-to-Text (STT)**: faster-whisper
-* **Text-to-Speech (TTS)**: edge-tts
-* **Video Processing**: yt-dlp + FFmpeg
+```bash
+python app.py
+```
 
-### 🚀 Quick Start
+- 預設網址：`http://localhost:7860`
 
-1. **Clone and install**
-
-    ```bash
-    git clone https://github.com/dofliu/transGemma.git
-    cd transGemma
-    ```
-
-2. **Install dependencies**
-
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-3. **Install external tools**
-    * **Ollama**: Install [Ollama](https://ollama.com/) and pull the model: `ollama run translategemma`
-    * **Tesseract OCR**: Install [Tesseract](https://github.com/tesseract-ocr/tesseract) and add it to your system PATH.
-    * **FFmpeg**: Install [FFmpeg](https://ffmpeg.org/) for video processing.
-
-4. **Run the application**
-
-    ```bash
-    python app.py
-    ```
-
-    OPEN YOUR BROWSER AT `http://localhost:7860`.
-
-### 🔌 API Mode
-
-To run TranslateGemma as a REST API (FastAPI) which also serves the Web UI:
+## API 模式
 
 ```bash
 python api.py
 ```
 
-* **API Docs**: `http://localhost:8000/docs`
-* **Web UI**: `http://localhost:8000/`
+- API 文件：`http://localhost:8000/docs`
+- Web UI：`http://localhost:8000/`
 
-### 🤖 MCP Server
-
-TranslateGemma supports the **Model Context Protocol (MCP)**, allowing integration with AI agents like **Claude Desktop** or **Cursor**.
-
-Add the following configuration to your MCP settings (e.g., `claude_desktop_config.json`):
-
-```json
-{
-  "mcpServers": {
-    "translategemma": {
-      "command": "python",
-      "args": ["/absolute/path/to/transGemma/mcp_server.py"]
-    }
-  }
-}
-```
-
----
-
-<a name="中文說明"></a>
-
-## 🇹🇼 中文說明
-
-**TranslateGemma** 是一個基於 Google **TranslateGemma** 模型（基於 Gemma 3 微調）的多功能翻譯工具。透過 **Gradio** 建構的友善網頁介面，提供文字、圖片、PDF 文件以及即時語音翻譯的全方位解決方案。
-
-### 🌟 主要功能
-
-* **📝 文字翻譯**：支援 55 種語言互譯，針對繁體中文語境優化。
-* **🖼️ 圖片翻譯**：整合 Tesseract OCR 技術，自動識別圖片文字並進行翻譯。
-* **📄 PDF 翻譯**：從 PDF 文件中提取文字，支援逐頁翻譯與進度顯示。
-* **🎙️ 語音翻譯**：錄製語音，使用 **faster-whisper** 辨識，翻譯後透過 **edge-tts** 朗讀。
-* **⚡ 即時串流翻譯**：即時接收麥克風輸入，邊說邊譯，並自動播放翻譯語音，實現無縫溝通。
-* **🎥 影片翻譯與配音**：下載 YouTube 影片，生成字幕，翻譯成多種語言，並製作帶有燒錄字幕的配音影片。
-* **📋 會議摘要** *(新功能)*：上傳會議影片，使用 Whisper STT 語音辨識生成逐字稿，並透過 AI 自動生成會議摘要（支援 Ollama 本地模型與 Gemini API）。
-
-### 🛠️ 技術架構
-
-* **大型語言模型**: Ollama (執行 `translategemma` 模型)
-* **前端介面**: Gradio
-* **文字識別 (OCR)**: Tesseract + Pytesseract
-* **PDF 處理**: PyMuPDF (fitz)
-* **語音辨識 (STT)**: faster-whisper
-* **語音合成 (TTS)**: edge-tts
-* **影片處理**: yt-dlp + FFmpeg
-
-### 🚀 快速開始
-
-1. **下載專案**
-
-    ```bash
-    git clone https://github.com/dofliu/transGemma.git
-    cd transGemma
-    ```
-
-2. **安裝依賴套件**
-
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-3. **安裝外部工具**
-    * **Ollama**: 下載並安裝 [Ollama](https://ollama.com/)，然後執行：`ollama run translategemma`
-    * **Tesseract OCR**: 安裝 [Tesseract](https://github.com/tesseract-ocr/tesseract) 並確保已加入系統 PATH 環境變數。
-
-4. **執行應用程式**
-
-    ```bash
-    python app.py
-    ```
-
-    在瀏覽器打開 `http://localhost:7860` 即可使用。
-
-### 🔌 API 模式
-
-啟動 API 模式（同時提供 REST API 與網頁介面）：
+## MCP 模式
 
 ```bash
-python api.py
+python mcp_server.py
 ```
 
-* **API 文件**: `http://localhost:8000/docs`
-* **網頁介面**: `http://localhost:8000/`
+可接入支援 MCP 的 Agent / IDE。
 
-### 🤖 MCP Server
+## 測試與健康檢查
 
-TranslateGemma 支援 **Model Context Protocol (MCP)**，可供 **Claude Desktop** 或 **Cursor** 等 AI Agent 調用。
-
-請將以下設定加入您的 MCP 設定檔（如 `claude_desktop_config.json`）：
-
-```json
-{
-  "mcpServers": {
-    "translategemma": {
-      "command": "python",
-      "args": ["/absolute/path/to/transGemma/mcp_server.py"]
-    }
-  }
-}
+```bash
+python -m py_compile app.py translator.py languages.py api.py mcp_server.py
+python -m unittest discover -s tests/smoke -p "test_*.py"
 ```
 
----
+一鍵檢查（PowerShell）：
 
-<a name="roadmap"></a>
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/check_project_health.ps1
+```
 
-## 🗺️ Roadmap / 未來規劃
+嚴格模式（偵測到可疑亂碼即失敗）：
 
-### 🔥 High Priority / 高優先級
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/check_project_health.ps1 -FailOnMojibake
+```
 
-* **Format-preserving PDF Translation / 格式保留 PDF 翻譯**: Translate PDF documents while maintaining original layout and formatting (similar to BabelDOC).
-* **Scanned PDF Support / 掃描版 PDF 支援**: Enhanced support for scanned PDFs using OCR.
+## CI
+- GitHub Actions workflow: `.github/workflows/health-check.yml`
+- 每次 push / pull request 到 `main` 會自動執行嚴格健康檢查。
+- CI 也會執行 `eval_runner` 的 dry gate，並上傳 `reports/eval/` 報表 artifact。
 
-### ⭐ Planned Features / 規劃中功能
+## 評測基線（Seed Eval）
+資料集位置：
+- `datasets/eval/seed_v1.jsonl`
 
-* ~~**Translation History / 翻譯歷史記錄**~~: ✅ Completed (`history.py`)
-* ~~**API Mode / API 模式**~~: ✅ Completed (`api.py`)
-* ~~**MCP Server**~~: ✅ Completed (`mcp_server.py`)
-* **Batch Translation / 批次翻譯**: Process multiple files at once.
-* **Performance Optimization / 效能優化**: Further optimization for local inference speed.
+執行（dry-run，不呼叫模型）：
 
-### 🌐 Multi-Platform Integration / 多平台整合 (Future)
+```bash
+python tools/eval_runner.py --mode dry
+```
 
-* **Browser Extension / 瀏覽器擴充套件**: Chrome/Edge extension for in-page translation, similar to Immersive Translate.
-* **Windows System Tray Tool / Windows 托盤工具**: Global hotkey (`Ctrl+Alt+T`), clipboard monitoring, floating translation window.
-* **Enhanced MCP Tools / 強化 MCP 工具**: Add `translate_pdf`, `translate_clipboard`, `get_supported_languages` tools.
-* **PDF Reader Integration / PDF 閱讀器整合**: Integration with Zotero, SumatraPDF, or built-in reader.
+執行（live-run，呼叫翻譯模型）：
 
----
+```bash
+python tools/eval_runner.py --mode live --limit 10
+```
 
-## 📄 License
+輸出會放在 `reports/eval/`（JSONL、CSV、Markdown 報告）。
 
-MIT License
+可加入 gate（供 CI 擋版）：
+
+```bash
+python tools/eval_runner.py --mode live --limit 20 --max-errors 0 --min-non-empty-rate 0.95
+```
+
+## 專案結構
+
+```text
+translateGemma/
+  app.py
+  translator.py
+  languages.py
+  api.py
+  mcp_server.py
+  video_dubber.py
+  meeting_summarizer.py
+  history.py
+  docs/
+  tests/smoke/
+```
+
+## 文件導覽
+- 專案藍圖：[docs/PROJECT_BLUEPRINT.md](docs/PROJECT_BLUEPRINT.md)
+- 路線圖：[docs/ROADMAP.md](docs/ROADMAP.md)
+- 下一步執行清單：[docs/NEXT_STEPS_2026-03-10.md](docs/NEXT_STEPS_2026-03-10.md)
+- 架構文件：[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+
+## 目前已知優先事項
+- 文件與編碼治理（持續清理亂碼來源）
+- API smoke tests 擴充
+- 翻譯品質基線資料集與報表工具
+
+## License
+MIT

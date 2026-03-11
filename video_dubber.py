@@ -60,6 +60,21 @@ class VideoDubber:
         os.makedirs(job_dir, exist_ok=True)
         return job_dir
 
+    def _run_cmd_checked(self, cmd: List[str], step: str) -> None:
+        """Execute command and raise with stderr when failed."""
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            stderr = (result.stderr or "").strip()
+            raise RuntimeError(f"{step} failed: {stderr or 'unknown error'}")
+
+    def _assert_nonempty_file(self, file_path: str, step: str) -> None:
+        """Ensure output exists and has content."""
+        if not file_path or not os.path.exists(file_path):
+            raise RuntimeError(f"{step} failed: output not found ({file_path})")
+        if os.path.getsize(file_path) <= 0:
+            raise RuntimeError(f"{step} failed: output is empty ({file_path})")
+
+
     def download_youtube(self, url: str, output_dir: str, progress_callback=None) -> Tuple[str, str]:
         """
         下載 YouTube 影片
@@ -300,8 +315,9 @@ class VideoDubber:
             output_path
         ]
         
-        subprocess.run(cmd, capture_output=True)
-        
+        self._run_cmd_checked(cmd, "merge dubbed audio")
+        self._assert_nonempty_file(output_path, "merge dubbed audio")
+
         return output_path
     
     def mux_video(self, video_path: str, dubbed_audio_path: str,
@@ -340,6 +356,8 @@ class VideoDubber:
                 '-i', dubbed_audio_path,
                 '-vf', f"subtitles='{subtitle_escaped}':force_style='{subtitle_style}'",
                 '-c:v', 'libx264', '-preset', 'fast', '-crf', '23',
+                '-c:a', 'aac', '-b:a', '192k',
+                '-movflags', '+faststart',
                 '-map', '0:v:0',
                 '-map', '1:a:0',
                 '-shortest',
@@ -352,14 +370,17 @@ class VideoDubber:
                 '-i', video_path,
                 '-i', dubbed_audio_path,
                 '-c:v', 'copy',
+                '-c:a', 'aac', '-b:a', '192k',
+                '-movflags', '+faststart',
                 '-map', '0:v:0',
                 '-map', '1:a:0',
                 '-shortest',
                 output_path
             ]
         
-        subprocess.run(cmd, capture_output=True)
-        
+        self._run_cmd_checked(cmd, "mux video")
+        self._assert_nonempty_file(output_path, "mux video")
+
         return output_path
     
     def generate_srt(self, segments: List[Segment], output_dir: str, use_translated: bool = False) -> str:
@@ -404,11 +425,12 @@ class VideoDubber:
             video_path = video_source
             audio_path = os.path.join(job_dir, "audio.wav")
             # 轉換本地影片音訊
-            subprocess.run([
+            self._run_cmd_checked([
                 'ffmpeg', '-y', '-i', video_path,
                 '-vn', '-acodec', 'pcm_s16le', '-ar', '16000', '-ac', '1',
                 audio_path
-            ], capture_output=True)
+            ], "extract audio from local video")
+            self._assert_nonempty_file(audio_path, "extract audio from local video")
         
         results['original_video'] = video_path
         
@@ -467,11 +489,12 @@ class VideoDubber:
         else:
             video_path = video_source
             audio_path = os.path.join(job_dir, "audio.wav")
-            subprocess.run([
+            self._run_cmd_checked([
                 'ffmpeg', '-y', '-i', video_path,
                 '-vn', '-acodec', 'pcm_s16le', '-ar', '16000', '-ac', '1',
                 audio_path
-            ], capture_output=True)
+            ], "extract audio from local video")
+            self._assert_nonempty_file(audio_path, "extract audio from local video")
         
         # 生成字幕（只做一次）
         segments = self.generate_subtitles(audio_path, source_lang, progress_callback)

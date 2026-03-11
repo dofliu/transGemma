@@ -1,0 +1,32 @@
+﻿{"id":"seed-001","source_lang":"en_US","target_lang":"zh_TW","domain":"general","source_text":"Hello, how are you today?","reference":"你好，你今天過得如何？"}
+{"id":"seed-002","source_lang":"en_US","target_lang":"zh_TW","domain":"general","source_text":"Please save your work before closing the app.","reference":"關閉應用程式前，請先儲存你的工作。"}
+{"id":"seed-003","source_lang":"en_US","target_lang":"zh_TW","domain":"technical","source_text":"The API request timed out after 30 seconds.","reference":"API 請求在 30 秒後逾時。"}
+{"id":"seed-004","source_lang":"en_US","target_lang":"zh_TW","domain":"technical","source_text":"Enable GPU acceleration to reduce inference latency.","reference":"啟用 GPU 加速可降低推論延遲。"}
+{"id":"seed-005","source_lang":"en_US","target_lang":"zh_TW","domain":"business","source_text":"We need a revised contract by next Monday.","reference":"我們需要在下週一前取得修訂後的合約。"}
+{"id":"seed-006","source_lang":"en_US","target_lang":"ja_JP","domain":"general","source_text":"Thank you for your quick response.","reference":"迅速なご返信ありがとうございます。"}
+{"id":"seed-007","source_lang":"en_US","target_lang":"ja_JP","domain":"technical","source_text":"Restart the service after updating the configuration file.","reference":"設定ファイルを更新した後、サービスを再起動してください。"}
+{"id":"seed-008","source_lang":"en_US","target_lang":"ko_KR","domain":"general","source_text":"Can we schedule a meeting for tomorrow morning?","reference":"내일 아침에 회의를 잡을 수 있을까요?"}
+{"id":"seed-009","source_lang":"en_US","target_lang":"ko_KR","domain":"technical","source_text":"The model output should preserve line breaks.","reference":"모델 출력은 줄바꿈을 유지해야 합니다."}
+{"id":"seed-010","source_lang":"en_US","target_lang":"fr_FR","domain":"general","source_text":"I will send the final report tonight.","reference":"J'enverrai le rapport final ce soir."}
+{"id":"seed-011","source_lang":"en_US","target_lang":"de_DE","domain":"general","source_text":"The package has already been delivered.","reference":"Das Paket wurde bereits zugestellt."}
+{"id":"seed-012","source_lang":"en_US","target_lang":"es_ES","domain":"general","source_text":"Please check the attached invoice.","reference":"Por favor, revisa la factura adjunta."}
+{"id":"seed-013","source_lang":"en_US","target_lang":"vi_VN","domain":"general","source_text":"Our team will provide an update this afternoon.","reference":"Nhóm của chúng tôi sẽ cập nhật vào chiều nay."}
+{"id":"seed-014","source_lang":"en_US","target_lang":"th_TH","domain":"general","source_text":"The workshop starts at 9:30 AM.","reference":"เวิร์กช็อปเริ่มเวลา 9:30 น."}
+{"id":"seed-015","source_lang":"zh_TW","target_lang":"en_US","domain":"general","source_text":"請確認明天的會議室是否可用。","reference":"Please confirm whether the meeting room is available tomorrow."}
+{"id":"seed-016","source_lang":"zh_TW","target_lang":"en_US","domain":"technical","source_text":"請將錯誤日誌附在回報單中。","reference":"Please attach the error log to the bug report."}
+{"id":"seed-017","source_lang":"zh_TW","target_lang":"ja_JP","domain":"general","source_text":"這份文件需要在今天下班前完成。","reference":"この書類は本日終業前に完成させる必要があります。"}
+{"id":"seed-018","source_lang":"zh_TW","target_lang":"ko_KR","domain":"business","source_text":"我們希望下週完成第一版提案。","reference":"저희는 다음 주에 1차 제안서를 완료하기를 희망합니다."}
+{"id":"seed-019","source_lang":"ja_JP","target_lang":"zh_TW","domain":"general","source_text":"本日の議事録を共有してください。","reference":"請分享今天的會議紀錄。"}
+{"id":"seed-020","source_lang":"ja_JP","target_lang":"en_US","domain":"technical","source_text":"この設定を有効にするとメモリ使用量が増加します。","reference":"Enabling this setting increases memory usage."}
+{"id":"seed-021","source_lang":"ko_KR","target_lang":"zh_TW","domain":"general","source_text":"파일을 업로드한 후 번역 버튼을 눌러 주세요.","reference":"上傳檔案後，請按下翻譯按鈕。"}
+{"id":"seed-022","source_lang":"ko_KR","target_lang":"en_US","domain":"technical","source_text":"스트리밍 모드에서는 지연 시간이 짧아야 합니다.","reference":"Latency should be low in streaming mode."}
+{"id":"seed-023","source_lang":"en_US","target_lang":"zh_TW","domain":"legal","source_text":"This agreement shall be governed by the laws of Taiwan.","reference":"本協議應受台灣法律管轄。"}
+{"id":"seed-024","source_lang":"en_US","target_lang":"zh_TW","domain":"medical","source_text":"If symptoms persist, consult a licensed physician.","reference":"若症狀持續，請諮詢合格醫師。"}
+{"id":"seed-025","source_lang":"en_US","target_lang":"zh_TW","domain":"finance","source_text":"Past performance does not guarantee future results.","reference":"過去績效不保證未來結果。"}
+{"id":"seed-026","source_lang":"zh_TW","target_lang":"en_US","domain":"finance","source_text":"請在月底前提交報銷憑證。","reference":"Please submit reimbursement receipts before the end of the month."}
+{"id":"seed-027","source_lang":"en_US","target_lang":"zh_TW","domain":"ui","source_text":"Click the refresh button to reload task status.","reference":"點擊重新整理按鈕以重新載入任務狀態。"}
+{"id":"seed-028","source_lang":"en_US","target_lang":"zh_TW","domain":"ui","source_text":"Drag and drop files here, or click to upload.","reference":"將檔案拖放到這裡，或點擊以上傳。"}
+{"id":"seed-029","source_lang":"en_US","target_lang":"zh_TW","domain":"ocr","source_text":"Scanned documents may contain recognition errors.","reference":"掃描文件可能包含辨識錯誤。"}
+{"id":"seed-030","source_lang":"en_US","target_lang":"zh_TW","domain":"pdf","source_text":"Preserve original headings and numbered lists.","reference":"請保留原始標題與編號清單。"}
+{"id":"seed-031","source_lang":"zh_TW","target_lang":"en_US","domain":"meeting","source_text":"請幫我整理今天會議的重點與待辦事項。","reference":"Please summarize today's meeting highlights and action items."}
+{"id":"seed-032","source_lang":"en_US","target_lang":"zh_TW","domain":"meeting","source_text":"Action item: update the deployment checklist by Friday.","reference":"待辦事項：請於週五前更新部署檢查清單。"}

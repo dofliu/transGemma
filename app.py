@@ -1,18 +1,13 @@
-﻿"""
-TranslateGemma 蝬脤?隞
-========================
-雿輻 Gradio 撱箇????蝧餉陌隞
+"""
+TranslateGemma UI.
 
-???孵?嚗?
+Run:
     python app.py
-
-?嚗?
-    1. 憭?閮??蝧餉陌
-    2. ?? OCR 蝧餉陌
-    3. 55 蝔株?閮?舀
 """
 
 import gradio as gr
+import re
+from urllib.parse import urlparse, parse_qs, unquote
 from translator import translator
 from languages import LANGUAGES, COMMON_LANGUAGES, get_language_info
 
@@ -134,16 +129,15 @@ def get_dropdown_choices():
 from history import history_manager
 
 def translate_text(text: str, source_lang: str, target_lang: str, glossary_text: str = "", style_guide: str = ""):
-    """??蝧餉陌嚗葡瘚?"""
+    """Text translation (streaming output)."""
     if not text.strip():
-        yield "請先輸入要翻譯的文字。"
+        yield "Please enter text to translate."
         return
-    
+
     src_info = get_language_info(source_lang)
     tgt_info = get_language_info(target_lang)
-    
-    yield f"翻譯中...（{src_info[0]} -> {tgt_info[0]}）\n"
-    
+    yield f"Translating... ({src_info[0]} -> {tgt_info[0]})\n"
+
     full_translation = ""
     for result in translator.translate_stream(
         text,
@@ -154,8 +148,7 @@ def translate_text(text: str, source_lang: str, target_lang: str, glossary_text:
     ):
         full_translation = result
         yield result
-        
-    # 撖怠甇瑕閮?
+
     history_manager.add_history(
         type="text",
         source_lang=source_lang,
@@ -172,71 +165,63 @@ def translate_text(text: str, source_lang: str, target_lang: str, glossary_text:
 def translate_image(image, source_lang: str, target_lang: str):
     """Translate text from image via OCR and model translation."""
     if image is None:
-        yield "請先上傳圖片。"
+        yield "Please upload an image first."
         return
-    
+
     full_result = ""
-    original_text = "Image Translation"
-    
     for result in translator.translate_image(image, target_lang, source_lang):
         full_result = result
         yield result
-        
-    # 撖怠甇瑕閮?
-    # ?ㄐ?瘜?????憪????隞亙?璅酉
-    # 憒??喳???嚗?撠?????output ?桅?銝西??楝敺?
+
     history_manager.add_history(
         type="image",
         source_lang=source_lang,
         target_lang=target_lang,
         original_content="[Image Upload]",
         translated_content=full_result,
-        details={"result_length": len(full_result)}
+        details={"result_length": len(full_result)},
     )
 
 
 def translate_pdf(pdf_file, source_lang: str, target_lang: str):
-    """PDF ?辣蝧餉陌"""
+    """Translate PDF page by page."""
     if pdf_file is None:
-        yield "請先上傳 PDF 檔案。"
+        yield "Please upload a PDF file first."
         return
-    
+
     full_result = ""
     for result in translator.translate_pdf(pdf_file, target_lang, source_lang):
         full_result = result
         yield result
-        
-    # 撖怠甇瑕閮?
+
     history_manager.add_history(
         type="pdf",
         source_lang=source_lang,
         target_lang=target_lang,
         original_content=pdf_file if isinstance(pdf_file, str) else "[PDF File]",
         translated_content=full_result,
-        details={"pdf_processed": True}
+        details={"pdf_processed": True},
     )
 
 
 import asyncio
 
+
 def translate_voice(audio, source_lang: str, target_lang: str):
     """Speech translation pipeline: STT -> translate -> TTS."""
     if audio is None:
-        return "請先提供語音輸入。", "", None
-    
-    # 1. 隤颲刻? (STT)
-    recognized_text, detected_lang = translator.speech_to_text(audio, source_lang)
-    
-    if recognized_text.startswith("??"):
+        return "Please provide audio input first.", "", None
+
+    recognized_text, _detected_lang = translator.speech_to_text(audio, source_lang)
+
+    if recognized_text.startswith("Not installed") or recognized_text.startswith("Speech recognition failed"):
         return recognized_text, "", None
-    
+
     if not recognized_text:
-        return "未辨識到可用語音內容。", "", None
-    
-    # 2. 蝧餉陌??
+        return "No speech content detected.", "", None
+
     translated_text = translator.translate(recognized_text, source_lang, target_lang)
-    
-    # 3. ??頧???(TTS)
+
     try:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -244,22 +229,21 @@ def translate_voice(audio, source_lang: str, target_lang: str):
         loop.close()
     except Exception as e:
         audio_path = None
-        print(f"TTS ?航炊: {e}")
-    
-    # 撖怠甇瑕閮?
+        print(f"TTS failed: {e}")
+
     history_manager.add_history(
         type="voice",
         source_lang=source_lang,
         target_lang=target_lang,
         original_content=recognized_text,
         translated_content=translated_text,
-        details={"audio_path": audio_path if audio_path else ""}
+        details={"audio_path": audio_path if audio_path else ""},
     )
-    
+
     return recognized_text, translated_text, audio_path
 
 
-# ========== 敶梁?蝧餉陌? ==========
+# ========== Video Translation ==========
 from video_dubber import VideoDubber
 
 # ========== ?降??? ==========
@@ -274,8 +258,24 @@ def process_video_translation(video_source, source_lang: str, target_langs,
     global video_dubber_instance
     
     if not video_source:
-        return None, None, None, None, "請提供 YouTube URL 或本地影片檔案。"
-    
+        return None, None, None, None, "Please provide a YouTube URL or upload a local video file.", None
+
+    if (
+        isinstance(video_source, str)
+        and not video_source.startswith("http")
+        and not os.path.exists(video_source)
+    ):
+        if len(video_source) > 240 or video_source.startswith("data:") or video_source.startswith("blob:"):
+            return (
+                None,
+                None,
+                None,
+                None,
+                "Invalid local video input. Please upload the file again (do not use data/blob URL).",
+                None,
+            )
+        return None, None, None, None, f"Local video file not found: {video_source}", None
+
     # ??憭?閮
     if isinstance(target_langs, list):
         langs_list = target_langs if target_langs else ["zh_TW"]
@@ -320,14 +320,26 @@ def process_video_translation(video_source, source_lang: str, target_langs,
                 }
             )
             
+            dubbed_video = results.get('dubbed_video')
+            if not dubbed_video or not os.path.exists(dubbed_video) or os.path.getsize(dubbed_video) <= 0:
+                return (
+                    results.get('original_video'),
+                    None,
+                    results.get('original_srt'),
+                    results.get('translated_srt'),
+                    "Video translation failed: dubbed video output is missing or invalid.",
+                    None,
+                )
+
             return (
                 results.get('original_video'),
-                results.get('dubbed_video'),
+                dubbed_video,
                 results.get('original_srt'),
                 results.get('translated_srt'),
-                "影片翻譯處理完成。",
-                None  # ?株?閮銝?閬甈⊥?獢?銵?
+                "Video translation completed.",
+                None,
             )
+
         else:
             # 憭?閮嚗蝙?冽甈∟???
             batch_results = video_dubber_instance.process_video_batch(
@@ -355,19 +367,19 @@ def process_video_translation(video_source, source_lang: str, target_langs,
             first_lang = langs_list[0]
             first_result = batch_results['languages'].get(first_lang, {})
             
-            # ?園???甈⊥?獢?
+            # ????????
             all_batch_files = []
-            status_msg = f"???寞活??摰?嚗?? {len(langs_list)} 蝔株?閮:\n\n"
-            
+            status_msg = f"Batch translation completed: {len(langs_list)} languages\n\n"
+
             for lang in langs_list:
                 lang_res = batch_results['languages'].get(lang, {})
-                status_msg += f"?? {lang}:\n"
+                status_msg += f"Language {lang}:\n"
                 if lang_res.get('dubbed_video'):
                     all_batch_files.append(lang_res['dubbed_video'])
-                    status_msg += f"   ? 敶梁?: {lang_res['dubbed_video']}\n"
+                    status_msg += f"  - Dubbed video: {lang_res['dubbed_video']}\n"
                 if lang_res.get('translated_srt'):
                     all_batch_files.append(lang_res['translated_srt'])
-                    status_msg += f"   ?? 摮?: {lang_res['translated_srt']}\n"
+                    status_msg += f"  - Translated subtitle: {lang_res['translated_srt']}\n"
                 status_msg += "\n"
             
             # 銋??亙?憪?撟?
@@ -383,7 +395,61 @@ def process_video_translation(video_source, source_lang: str, target_langs,
                 all_batch_files  # ?啣?嚗??甈⊥?獢?銵?
             )
     except Exception as e:
-        return None, None, None, None, f"???航炊: {str(e)}", None
+        raw_error = str(e)
+        clean_error = re.sub(r"\x1b\[[0-9;]*m", "", raw_error)
+        if "HTTP Error 403" in clean_error or "Forbidden" in clean_error:
+            msg = (
+                "Video translation failed: source returned HTTP 403 (Forbidden). "
+                "Try another video URL, use local upload, or update yt-dlp/cookies."
+            )
+        else:
+            msg = f"Video translation failed: {clean_error}"
+        return None, None, None, None, msg, None
+
+
+def _normalize_uploaded_video(uploaded):
+    """Return a local file path from Gradio uploaded video value when possible."""
+    if not uploaded:
+        return None
+
+    # Some Gradio versions wrap values as tuple/list.
+    if isinstance(uploaded, (list, tuple)):
+        for item in uploaded:
+            normalized = _normalize_uploaded_video(item)
+            if normalized:
+                return normalized
+
+    # Newer Gradio may provide dict payload for media components.
+    if isinstance(uploaded, dict):
+        for key in ("path", "name", "filepath", "video", "orig_name", "url"):
+            val = uploaded.get(key)
+            normalized = _normalize_uploaded_video(val)
+            if normalized:
+                return normalized
+
+    if isinstance(uploaded, str):
+        # Reject data/blob URLs explicitly; they are not filesystem paths.
+        if uploaded.startswith("data:") or uploaded.startswith("blob:"):
+            return None
+
+        if os.path.exists(uploaded):
+            return uploaded
+        # Sometimes the UI may pass a local file URL through the local server.
+        if uploaded.startswith("http://") or uploaded.startswith("https://"):
+            parsed = urlparse(uploaded)
+            if parsed.hostname in {"127.0.0.1", "localhost"}:
+                qs = parse_qs(parsed.query)
+                if "file" in qs and qs["file"]:
+                    candidate = unquote(qs["file"][0])
+                    if os.path.exists(candidate):
+                        return candidate
+                if "file=" in parsed.path:
+                    candidate = unquote(parsed.path.split("file=", 1)[1])
+                    if os.path.exists(candidate):
+                        return candidate
+            return None
+
+    return None
 
 
 import numpy as np
@@ -417,100 +483,85 @@ def is_silence(audio_chunk: np.ndarray, threshold: float = 0.02) -> bool:
 
 
 def save_audio_buffer(audio_data: np.ndarray, sample_rate: int) -> str:
-    """撠閮楨銵摮?冽? WAV 瑼?"""
+    """Save buffered audio into a temporary WAV file."""
     temp_dir = tempfile.gettempdir()
     temp_path = os.path.join(temp_dir, f"stream_audio_{id(audio_data)}.wav")
-    
-    with wave.open(temp_path, 'wb') as wf:
+
+    with wave.open(temp_path, "wb") as wf:
         wf.setnchannels(1)
-        wf.setsampwidth(2)  # 16-bit
+        wf.setsampwidth(2)
         wf.setframerate(sample_rate)
         wf.writeframes(audio_data.astype(np.int16).tobytes())
-    
+
     return temp_path
 
 
 def process_stream_chunk(audio_chunk, source_lang: str, target_lang: str, silence_threshold: float = 0.02):
-    """??銝脫??唾??挾"""
+    """Process one streaming audio chunk."""
     global stream_state
-    
-    # ?湔??瑼餃?
+
     stream_state.silence_threshold = silence_threshold
-    
+
     if audio_chunk is None:
-        return stream_state.full_transcript, stream_state.full_translation, "蝑?隤頛詨...", None
-    
+        return stream_state.full_transcript, stream_state.full_translation, "Waiting for audio input...", None
+
     sample_rate, audio_data = audio_chunk
-    
-    # 頧??箏?脤?
+
     if len(audio_data.shape) > 1:
         audio_data = audio_data.mean(axis=1)
-    
-    # 蝝舐??唾?
+
     stream_state.audio_buffer.append(audio_data)
     stream_state.sample_rate = sample_rate
-    
-    # 閮?蝝舐??瑕漲
+
     total_samples = sum(len(chunk) for chunk in stream_state.audio_buffer)
     audio_length = total_samples / sample_rate
-    
-    # ?寥脩???菜葫嚗?閬??憭??喟?畾?
+
     is_silent = is_silence(audio_data, stream_state.silence_threshold)
-    
     if is_silent:
         stream_state.silence_count += 1
     else:
-        stream_state.silence_count = 0  # ?蔭閮
-    
-    # ?斗?臬?府??
+        stream_state.silence_count = 0
+
     continuous_silence = stream_state.silence_count >= stream_state.silence_chunks_needed
     should_process = (
-        (continuous_silence and audio_length >= stream_state.min_audio_length) or
-        (audio_length >= stream_state.max_audio_length)
+        (continuous_silence and audio_length >= stream_state.min_audio_length)
+        or (audio_length >= stream_state.max_audio_length)
     )
-    
+
     if not should_process:
-        silence_indicator = "??" if is_silent else "??"
-        status = f"? ?銝?.. ({audio_length:.1f}s) {silence_indicator}"
+        silence_indicator = "silent" if is_silent else "listening"
+        status = f"Recording... ({audio_length:.1f}s) {silence_indicator}"
         return stream_state.full_transcript, stream_state.full_translation, status, None
-    
-    # ?蔥銝西??閮?
+
     full_audio = np.concatenate(stream_state.audio_buffer)
-    stream_state.audio_buffer = []  # 皜征蝺抵?
-    stream_state.silence_count = 0  # ?蔭?閮
-    
-    # ?脣??箄??獢?
+    stream_state.audio_buffer = []
+    stream_state.silence_count = 0
+
     temp_path = save_audio_buffer(full_audio, sample_rate)
-    
     tts_audio_path = None
-    
+
     try:
-        # STT
-        recognized, detected_lang = translator.speech_to_text(temp_path, source_lang)
-        
-        if recognized and not recognized.startswith("??"):
+        recognized, _detected_lang = translator.speech_to_text(temp_path, source_lang)
+
+        if recognized and not (recognized.startswith("Not installed") or recognized.startswith("Speech recognition failed")):
             stream_state.full_transcript += recognized + " "
-            
-            # 蝧餉陌
             translated = translator.translate(recognized, source_lang, target_lang)
             stream_state.full_translation += translated + " "
-            
-            # TTS - ??蝧餉陌隤
+
             try:
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 tts_audio_path = loop.run_until_complete(translator.text_to_speech(translated, target_lang))
                 loop.close()
             except Exception as e:
-                print(f"TTS ?航炊: {e}")
-        
-        # 皜??冽?瑼?
+                print(f"TTS failed: {e}")
+
         os.remove(temp_path)
-        
+
     except Exception as e:
-        print(f"銝脫????航炊: {e}")
-    
-    status = "已完成本段即時翻譯，請繼續說話..."
+        print(f"Streaming pipeline failed: {e}")
+
+    status = "Current segment translated. Keep speaking..."
     return stream_state.full_transcript.strip(), stream_state.full_translation.strip(), status, tts_audio_path
 
 
@@ -518,15 +569,14 @@ def reset_stream_state():
     """Reset streaming state."""
     global stream_state
     stream_state = StreamState()
-    return "", "", "已重設即時翻譯狀態。", None
+    return "", "", "Streaming state reset.", None
 
 
 def swap_languages(source: str, target: str):
-    """鈭斗?靘??璅?閮"""
+    """Swap source and target language."""
     return target, source
 
 
-# ============ 甇瑕閮?隞 ============
 def create_history_tab():
     with gr.TabItem("歷史紀錄"):
         with gr.Row():
@@ -584,7 +634,7 @@ def create_history_tab():
 
 # ============ 撱箇?隞 ============
 def create_ui():
-    """撱箇? Gradio 隞"""
+    """Build Gradio UI."""
     
     language_choices = get_dropdown_choices()
 
@@ -615,8 +665,8 @@ def create_ui():
     
     with gr.Blocks(
         title=TITLE,
-        css=APP_CSS,
     ) as demo:
+        gr.HTML(f"<style>{APP_CSS}</style>")
         gr.HTML(
             f"""
             <section class="tg-hero">
@@ -1024,7 +1074,20 @@ def create_ui():
                 )
                 
                 def handle_video_process(url, uploaded, src_lang, tgt_langs, burn_subs, progress=gr.Progress()):
-                    source = url if url else uploaded
+                    # Uploaded local file should take precedence over URL input.
+                    uploaded_path = _normalize_uploaded_video(uploaded)
+                    source = uploaded_path if uploaded_path else (url.strip() if isinstance(url, str) else url)
+                    if not source:
+                        return (
+                            None,
+                            None,
+                            None,
+                            None,
+                            "Please provide a YouTube URL or upload a local video file.",
+                            None,
+                            gr.update(choices=[], visible=False, value=None),
+                            None,
+                        )
                     result = process_video_translation(source, src_lang, tgt_langs, burn_subs, progress)
                     
                     # process_video_translation ?曉餈? 6 ??
@@ -1094,11 +1157,11 @@ def create_ui():
                 )
                 
                 gr.Markdown("""
-                > **影片翻譯提示：**
-                > - 影片長度與解析度會影響處理時間。
-                > - 需要本機可用的 ffmpeg。
-                > - 批次處理會輸出多個語言版本。
-                > - ?寞活??憭?閮???????瑼????具甈∟撓?箸?獢???
+                > **Video Translation Tips**
+                > - Processing time depends on video duration and resolution.
+                > - A local `ffmpeg` installation is required.
+                > - Batch mode outputs one result set per target language.
+                > - Validate with a short 30-60 second clip before long videos.
                 """)
             
             # ========== ?降???? ==========
@@ -1141,12 +1204,12 @@ def create_ui():
                             
                             ollama_model_selector = gr.Dropdown(
                                 choices=[
-                                    ("qwen3:4b (敹恍?", "qwen3:4b"),
-                                    ("ministral-3:8b (擃?鞈?", "ministral-3:8b"),
-                                    ("qwen3-v1:8b (擃?鞈?", "qwen3-v1:8b")
+                                    ("qwen3:4b (fast)", "qwen3:4b"),
+                                    ("ministral-3:8b (balanced)", "ministral-3:8b"),
+                                    ("qwen3-v1:8b (quality)", "qwen3-v1:8b")
                                 ],
                                 value="qwen3:4b",
-                                label="Ollama 模型",
+                                label="Ollama model",
                                 visible=True
                             )
                             
@@ -1316,42 +1379,40 @@ def create_ui():
                     inputs=[summary_output],
                     outputs=[summary_file]
                 )
-                
                 gr.Markdown("""
-                > **支援格式：**
-                > - 影片：mp4, avi, mov, mkv, webm
-                > - 可選擇多種摘要類型。
-                > - AI 後端可選本地 Ollama 或 Gemini API。
-                > - 建議先用短片測試流程。
-                > - ?????捱?澆蔣?摨佗?隢?蝑?
+                > **Supported Inputs**
+                > - Video: mp4, avi, mov, mkv, webm
+                > - Multiple summary types can be selected.
+                > - AI backend supports local Ollama or Gemini API.
+                > - Start with a short clip to validate your pipeline.
+                > - If summaries are too short, try a larger model or better audio quality.
                 """)
             
             # ========== 甇瑕閮??? ==========
             create_history_tab()
             
             # ========== ??? ==========
-            with gr.TabItem("關於"):
+            # ========== About ==========
+            with gr.TabItem("About"):
                 gr.Markdown("""
                 ## TranslateGemma
                 
-                TranslateGemma 是以 Gemma 系列模型為核心的多語翻譯工具。
+                TranslateGemma is a multilingual translation workspace powered by local models.
                 
-                ### 特色
-                - 支援文字、圖片、PDF、語音、影片翻譯
-                - 支援即時語音翻譯與會議摘要
-                - 可擴充多模型與工作流程
-                - 支援 55+ 語言
+                ### Highlights
+                - Text, image OCR, PDF, voice, video translation
+                - Real-time speech translation and meeting summary
+                - Extensible model/backend workflow
+                - 55+ language options
                 
-                ### 模型與執行
-                - 模型名稱：`translategemma`
-                - 推論平台：Ollama
-                - 建議先確認本機模型可正常回應
+                ### Runtime
+                - Default model: `translategemma`
+                - Inference runtime: Ollama
+                - Verify local model health before large jobs
                 
-                ### 注意事項
-                若遇到翻譯品質不穩定，可調整提示詞、術語表與風格設定。
-                建議搭配小型回歸測試集持續驗證。
+                ### Notes
+                For unstable quality, tune prompt, glossary, and style settings, then verify with a small regression set.
                 """)
-        
         gr.Markdown("---")
         gr.Markdown("**提示**：請先確認模型與外部工具安裝完成。")
     
@@ -1361,10 +1422,45 @@ def create_ui():
 # ============ 銝餌?撘?============
 if __name__ == "__main__":
     demo = create_ui()
-    demo.launch(
-        server_name="0.0.0.0",
-        server_port=7860,
-        share=False,
-        show_error=True
-    )
+    base_port = int(os.getenv("GRADIO_SERVER_PORT", "7860"))
+    launched = False
+
+    for port in range(base_port, base_port + 10):
+        try:
+            demo.launch(
+                server_name="0.0.0.0",
+                server_port=port,
+                share=False,
+                show_error=True,
+            )
+            launched = True
+            break
+        except OSError as exc:
+            if "Cannot find empty port" in str(exc):
+                print(f"[WARN] Port {port} is occupied, trying {port + 1}...")
+                continue
+            raise
+
+    if not launched:
+        fallback_base = 8899
+        for port in range(fallback_base, fallback_base + 10):
+            try:
+                demo.launch(
+                    server_name="0.0.0.0",
+                    server_port=port,
+                    share=False,
+                    show_error=True,
+                )
+                launched = True
+                break
+            except OSError as exc:
+                if "Cannot find empty port" in str(exc):
+                    print(f"[WARN] Port {port} is occupied, trying {port + 1}...")
+                    continue
+                raise
+
+    if not launched:
+        raise OSError(
+            f"No available port found in ranges {base_port}-{base_port + 9} and {fallback_base}-{fallback_base + 9}"
+        )
 

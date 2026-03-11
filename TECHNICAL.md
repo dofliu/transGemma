@@ -1,171 +1,124 @@
-# TranslateGemma 技術文件
+﻿# TECHNICAL
 
-## 專案概述
+本文件描述 TranslateGemma 的技術架構、核心流程、模組邊界與開發維運重點。
 
-TranslateGemma 是一個基於 Google TranslateGemma 模型的多功能翻譯工具，透過 Gradio 網頁介面提供文字、圖片、PDF 和語音翻譯功能。
+## 1. 架構總覽
 
----
+TranslateGemma 目前採單體應用（monolith）型態，核心分為：
+- 介面層：Gradio (`app.py`)
+- 服務層：翻譯服務 (`translator.py`)
+- 入口層：FastAPI (`api.py`) / MCP (`mcp_server.py`)
+- 任務模組：影片配音 (`video_dubber.py`)、會議摘要 (`meeting_summarizer.py`)
+- 基礎設施：歷史紀錄 (`history.py` + `history.db`)
 
-## 系統架構
+## 2. 主要模組
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     Gradio Web UI                            │
-│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐│
-│  │文字翻譯 │ │圖片翻譯 │ │PDF翻譯  │ │語音翻譯 │ │即時翻譯 ││
-│  └────┬────┘ └────┬────┘ └────┬────┘ └────┬────┘ └────┬────┘│
-└───────┼──────────┼──────────┼──────────┼──────────┼────────┘
-        │          │          │          │          │
-        ▼          ▼          ▼          ▼          ▼
-┌─────────────────────────────────────────────────────────────┐
-│                  TranslateGemmaService                       │
-│  ┌──────────────┐ ┌──────────────┐ ┌──────────────────────┐ │
-│  │ translate()  │ │translate_pdf │ │ speech_to_text()    │ │
-│  │ translate    │ │translate     │ │ text_to_speech()    │ │
-│  │ _stream()    │ │ _image()     │ │                      │ │
-│  └──────┬───────┘ └──────┬───────┘ └──────────┬───────────┘ │
-└─────────┼────────────────┼────────────────────┼─────────────┘
-          │                │                    │
-          ▼                ▼                    ▼
-┌─────────────────┐ ┌──────────────┐ ┌────────────────────────┐
-│     Ollama      │ │   PyMuPDF    │ │  faster-whisper (STT)  │
-│ TranslateGemma  │ │  Tesseract   │ │   edge-tts (TTS)       │
-└─────────────────┘ └──────────────┘ └────────────────────────┘
-```
+### 2.1 `app.py`
+- 建立主要 UI（儀表板、文字/圖片/PDF/語音/即時語音/影片/會議摘要/歷史/關於）。
+- 負責將 UI 輸入轉換成服務呼叫。
+- 管理即時語音翻譯狀態（buffer、靜音判定、分段時機）。
 
----
+### 2.2 `translator.py`
+- 封裝與 Ollama 的互動。
+- 主要能力：
+  - `translate` / `translate_stream`
+  - `translate_image`
+  - `translate_pdf`
+  - `speech_to_text`
+  - `text_to_speech`
+- 支援文字翻譯的自訂規則：
+  - `glossary`（術語表）
+  - `style`（風格指南）
 
-## 檔案結構
+### 2.3 `languages.py`
+- 集中管理語言代碼、顯示名稱與 locale。
+- 提供下拉顯示與 TTS voice mapping。
 
-```
-translateGemma/
-├── app.py              # Gradio UI 主程式
-├── translator.py       # 翻譯服務核心
-├── languages.py        # 55 種語言定義
-├── requirements.txt    # Python 依賴
-└── TECHNICAL.md        # 本技術文件
-```
+### 2.4 `api.py`
+- 提供 REST API 入口，並掛載 Gradio UI。
+- 主要端點：
+  - `POST /api/translate/text`
+  - `POST /api/translate/image`
+  - `POST /api/dub/video`
 
----
+### 2.5 `mcp_server.py`
+- 提供 MCP 工具化介面，支援 Agent 調用翻譯與影片配音。
 
-## 即時語音翻譯處理機制
+### 2.6 `history.py`
+- 使用 SQLite 儲存歷史紀錄。
+- 主要欄位：type、source_lang、target_lang、original_content、translated_content、details。
 
-### 流程圖
+## 3. 核心流程
 
-```
-麥克風輸入 (Gradio streaming)
-         │
-         ▼ (每 ~250ms 傳送一個 audio_chunk)
-    ┌────────────────────────────────────┐
-    │     process_stream_chunk()          │
-    │                                     │
-    │  1. 接收 (sample_rate, audio_data) │
-    │  2. 累積到 audio_buffer[]          │
-    │  3. 計算累積長度                    │
-    │  4. 靜音偵測 (RMS 計算)            │
-    │  5. 連續靜音計數                    │
-    │  6. 判斷是否處理                    │
-    └────────────────────────────────────┘
-         │
-         ├─ 否 → 返回狀態，繼續累積
-         │
-         ▼ 是
-    ┌────────────────────────────────────┐
-    │  7. 合併 buffer → WAV 檔案         │
-    │  8. Whisper STT → 文字             │
-    │  9. TranslateGemma → 翻譯          │
-    │  10. edge-tts → 語音輸出           │
-    └────────────────────────────────────┘
-         │
-         ▼
-    顯示結果 + 自動播放語音
-```
+### 3.1 文字翻譯
+1. UI 收到輸入文字與語言設定。
+2. 可選：術語表、風格指南。
+3. 呼叫 `translator.translate_stream(...)`。
+4. 逐步回傳結果並寫入歷史。
 
-### 靜音偵測演算法
+### 3.2 圖片翻譯
+1. 上傳圖片。
+2. OCR 擷取文字。
+3. 逐步翻譯並更新輸出。
+4. 儲存歷史。
 
-```python
-def is_silence(audio_chunk, threshold=0.02):
-    """
-    使用 RMS (Root Mean Square) 計算音量
-    若 RMS < threshold × 32768 則判定為靜音
-    """
-    rms = sqrt(mean(audio_chunk ** 2))
-    return rms < threshold * 32768
-```
+### 3.3 PDF 翻譯
+1. 上傳 PDF。
+2. 逐頁擷取文字。
+3. 逐頁翻譯與整合格式化輸出。
+4. 儲存歷史。
 
-### 段落判定邏輯
+### 3.4 語音翻譯
+1. 音訊輸入。
+2. STT 轉文字。
+3. 翻譯。
+4. TTS 合成回播。
+5. 儲存歷史。
 
-```python
-# 觸發處理的條件：
-should_process = (
-    # 條件 A: 連續靜音達標 且 累積時間足夠
-    (silence_count >= 3 and audio_length >= 3.0秒) or
-    # 條件 B: 累積時間達上限（強制處理）
-    (audio_length >= 15.0秒)
-)
-```
+### 3.5 即時語音翻譯
+1. 音訊流分段收集。
+2. RMS 靜音判定。
+3. 達條件後觸發 STT -> 翻譯 -> TTS。
+4. 累積即時逐字與翻譯內容。
 
-### 可調整參數
+## 4. 測試策略
 
-| 參數 | 預設值 | UI 可調 | 說明 |
-|------|--------|---------|------|
-| `silence_threshold` | 0.02 | ✅ 滑桿 | RMS 判定靜音的門檻值 |
-| `silence_chunks_needed` | 3 | ❌ | 需要連續幾個靜音片段 |
-| `min_audio_length` | 3.0s | ❌ | 最少累積時間 |
-| `max_audio_length` | 15.0s | ❌ | 最多累積時間（強制處理）|
+目前已有 `tests/smoke/`：
+- `test_translator_smoke.py`
+- `test_pipeline_contracts.py`
 
----
+建議擴充：
+- API smoke（mock translator）
+- UI 文案/語言資料 sanity check
+- 影片與會議摘要的最小路徑測試（可 mock 外部依賴）
 
-## 各功能技術細節
+## 5. 依賴與外部工具
 
-### 1. 文字翻譯
+- 模型：Ollama + `translategemma`
+- OCR：Tesseract
+- 視訊：FFmpeg、yt-dlp
+- STT/TTS：faster-whisper、edge-tts
 
-- **模型**: TranslateGemma (Ollama)
-- **特點**: 串流輸出、繁體中文優化 prompt
+這些工具缺失時，功能會退化或失敗；文件中需明確列出安裝步驟與 PATH 要求。
 
-### 2. 圖片翻譯
+## 6. 編碼與文件治理（重要）
 
-- **OCR**: Tesseract
-- **支援語言**: chi_tra, chi_sim, eng, jpn, kor 等
-- **流程**: 圖片 → OCR → 翻譯
+歷史上專案曾出現 mojibake（亂碼）問題，導致 UI/文件可讀性受損。
 
-### 3. PDF 翻譯
-
-- **提取**: PyMuPDF (fitz)
-- **處理**: 逐頁提取文字 → 翻譯 → 串流顯示
-
-### 4. 語音翻譯
-
-- **STT**: faster-whisper (base 模型)
-- **TTS**: edge-tts (Microsoft Neural Voice)
-- **台灣語音**: zh-TW-HsiaoChenNeural
-
-### 5. 即時翻譯
-
-- **輸入**: Gradio streaming audio
-- **分段**: 連續靜音偵測
-- **輸出**: 自動播放 TTS
-
----
-
-## 依賴套件
-
-| 套件 | 用途 |
-|------|------|
-| gradio | Web UI 框架 |
-| ollama | LLM 呼叫 |
-| pytesseract | OCR |
-| Pillow | 圖片處理 |
-| PyMuPDF | PDF 處理 |
-| faster-whisper | 語音辨識 |
-| edge-tts | 語音合成 |
-
----
-
-## 啟動方式
+建議固定規範：
+- 所有 `.py`、`.md`、`.json` 使用 UTF-8。
+- 變更前後執行 smoke checks：
 
 ```bash
-cd d:\Dropbox\Project_CodingSimulation\MCP\translateGemma
-python app.py
-# 開啟 http://localhost:7860
+python -m py_compile app.py translator.py languages.py api.py mcp_server.py
+python -m unittest discover -s tests/smoke -p "test_*.py"
 ```
+
+- 逐步加入自動化編碼檢查腳本（Roadmap Phase 1）。
+
+## 7. 下一步技術方向
+
+- 文件與編碼治理收斂（README/TECHNICAL 持續同步）
+- 品質基線資料集（`datasets/eval/`）與報表工具
+- 長任務佇列化（video/pdf/meeting summary）
+- provider abstraction（local/cloud）
