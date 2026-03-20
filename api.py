@@ -420,6 +420,146 @@ async def retry_job_endpoint(job_id: str, background_tasks: BackgroundTasks):
     return {"job_id": job_id, "status": "queued", "retry_count": job["retry_count"]}
 
 
+# ========== Learning Endpoints ==========
+from learning import learning_manager
+
+
+class LearningTranslateRequest(BaseModel):
+    text: str
+    source_lang: str = "auto"
+    target_lang: str = "zh_TW"
+
+
+class WritingCorrectionRequest(BaseModel):
+    text: str
+    writing_lang: str = "en_US"
+    native_lang: str = "zh_TW"
+
+
+class ConversationRequest(BaseModel):
+    scenario: str
+    user_message: str
+    practice_lang: str = "en_US"
+    native_lang: str = "zh_TW"
+    history: str = ""
+
+
+class VocabularyAddRequest(BaseModel):
+    word: str
+    meaning: str
+    source_lang: str = "en_US"
+    target_lang: str = "zh_TW"
+    part_of_speech: str = ""
+    example_sentence: str = ""
+    example_translation: str = ""
+
+
+class ReviewCardRequest(BaseModel):
+    card_id: int
+    quality: int  # 0-5
+
+
+@app.post("/api/learning/translate")
+async def learning_translate_endpoint(request: LearningTranslateRequest):
+    """Translate with learning annotations (vocabulary, grammar, examples)."""
+    try:
+        result = ""
+        for chunk in translator.translate_learning(request.text, request.source_lang, request.target_lang):
+            result = chunk
+        return {"result": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/learning/writing-correction")
+async def writing_correction_endpoint(request: WritingCorrectionRequest):
+    """Correct and score a piece of writing."""
+    try:
+        result = ""
+        for chunk in translator.writing_correction(request.text, request.writing_lang, request.native_lang):
+            result = chunk
+        return {"result": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/learning/conversation")
+async def conversation_endpoint(request: ConversationRequest):
+    """AI conversation practice partner."""
+    try:
+        result = ""
+        for chunk in translator.conversation_practice(
+            request.scenario, request.user_message,
+            request.practice_lang, request.native_lang, request.history
+        ):
+            result = chunk
+        return {"reply": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/learning/flashcards")
+async def flashcards_endpoint(request: LearningTranslateRequest):
+    """Generate vocabulary flashcards from text."""
+    try:
+        result = ""
+        for chunk in translator.generate_flashcards(request.text, request.source_lang, request.target_lang):
+            result = chunk
+        return {"flashcards": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/learning/vocabulary")
+async def add_vocabulary_endpoint(request: VocabularyAddRequest):
+    """Add a word to the vocabulary bank."""
+    row_id = learning_manager.add_vocabulary(
+        word=request.word, meaning=request.meaning,
+        source_lang=request.source_lang, target_lang=request.target_lang,
+        part_of_speech=request.part_of_speech,
+        example_sentence=request.example_sentence,
+        example_translation=request.example_translation,
+    )
+    return {"id": row_id, "word": request.word}
+
+
+@app.get("/api/learning/vocabulary")
+async def list_vocabulary_endpoint(source_lang: str = "", target_lang: str = "", limit: int = 100):
+    """List vocabulary cards."""
+    cards = learning_manager.get_vocabulary(
+        source_lang=source_lang or None,
+        target_lang=target_lang or None,
+        limit=limit,
+    )
+    return {"count": len(cards), "vocabulary": cards}
+
+
+@app.get("/api/learning/vocabulary/due")
+async def due_vocabulary_endpoint(source_lang: str = "", target_lang: str = "", limit: int = 20):
+    """Get cards due for spaced repetition review."""
+    cards = learning_manager.get_due_cards(
+        source_lang=source_lang or None,
+        target_lang=target_lang or None,
+        limit=limit,
+    )
+    return {"count": len(cards), "cards": cards}
+
+
+@app.post("/api/learning/vocabulary/review")
+async def review_vocabulary_endpoint(request: ReviewCardRequest):
+    """Submit a spaced repetition review for a vocabulary card."""
+    result = learning_manager.review_card(request.card_id, request.quality)
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+    return result
+
+
+@app.get("/api/learning/stats")
+async def learning_stats_endpoint():
+    """Get learning progress statistics."""
+    return learning_manager.get_stats()
+
+
 if __name__ == "__main__":
     import uvicorn
 

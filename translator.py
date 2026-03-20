@@ -209,6 +209,92 @@ Provide feedback in this format:
         except Exception as exc:
             return f"聽寫檢查失敗：{exc}"
 
+    def conversation_practice(self, scenario: str, user_message: str,
+                              practice_lang_code: str, native_lang_code: str,
+                              history: str = "") -> Generator[str, None, None]:
+        """AI conversation partner for language practice."""
+        practice_info = get_language_info(practice_lang_code)
+        native_info = get_language_info(native_lang_code)
+        _, practice_en, _ = practice_info
+        _, native_en, _ = native_info
+
+        history_block = ""
+        if history.strip():
+            history_block = f"\nConversation so far:\n{history}\n"
+
+        prompt = f"""You are a friendly {practice_en} conversation partner helping a {native_en} speaker practice {practice_en}.
+
+Scenario: {scenario}
+{history_block}
+The student says: {user_message}
+
+Respond following these rules:
+1. Reply IN {practice_en} as a natural conversation partner in the given scenario.
+2. Keep your reply concise (1-3 sentences).
+3. After your reply, add a section "---" followed by:
+   - **翻譯**: {native_en} translation of your reply
+   - **糾正**: If the student's message has grammar/vocabulary errors, explain them in {native_en}. If correct, write "表達正確！"
+   - **建議**: One tip to improve their {practice_en}, in {native_en}"""
+
+        try:
+            stream = ollama.chat(
+                model=self.model_name,
+                messages=[{"role": "user", "content": prompt}],
+                stream=True,
+            )
+            full = ""
+            for chunk in stream:
+                full += chunk["message"]["content"]
+                yield full
+        except Exception as exc:
+            yield f"對話練習失敗：{exc}"
+
+    def writing_correction(self, text: str, lang_code: str,
+                           native_lang_code: str) -> Generator[str, None, None]:
+        """Correct and improve a piece of writing with detailed feedback."""
+        lang_info = get_language_info(lang_code)
+        native_info = get_language_info(native_lang_code)
+        _, lang_en, _ = lang_info
+        _, native_en, _ = native_info
+
+        prompt = f"""You are a professional {lang_en} writing tutor helping a {native_en} speaker.
+
+Analyze and correct the following {lang_en} text. Provide feedback in {native_en}.
+
+Student's writing:
+{text}
+
+Respond in this exact format:
+
+## 修正後的文章
+(Rewrite the corrected version in {lang_en})
+
+## 錯誤分析
+(List each error found, with:)
+- ❌ Original → ✅ Corrected — Explanation in {native_en}
+
+## 寫作評分
+- 文法 Grammar: X/10
+- 詞彙 Vocabulary: X/10
+- 流暢度 Fluency: X/10
+- 整體 Overall: X/10
+
+## 改善建議
+(2-3 specific tips to improve their {lang_en} writing, in {native_en})"""
+
+        try:
+            stream = ollama.chat(
+                model=self.model_name,
+                messages=[{"role": "user", "content": prompt}],
+                stream=True,
+            )
+            full = ""
+            for chunk in stream:
+                full += chunk["message"]["content"]
+                yield full
+        except Exception as exc:
+            yield f"寫作批改失敗：{exc}"
+
     def _build_prompt(self, text: str, source_code: str, target_code: str, glossary: str = "", style: str = "") -> str:
         src_info = get_language_info(source_code)
         tgt_info = get_language_info(target_code)

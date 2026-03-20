@@ -1573,12 +1573,222 @@ def create_ui():
                             outputs=pronun_result
                         )
 
+                    # --- 情境對話 ---
+                    with gr.TabItem("情境對話"):
+                        gr.Markdown("選擇一個場景，與 AI 進行目標語言對話練習。")
+                        with gr.Row():
+                            conv_practice_lang = gr.Dropdown(
+                                choices=language_choices,
+                                value="en_US",
+                                label="練習語言"
+                            )
+                            conv_native_lang = gr.Dropdown(
+                                choices=language_choices,
+                                value="zh_TW",
+                                label="母語（回饋語言）"
+                            )
+                        conv_scenario = gr.Dropdown(
+                            choices=[
+                                ("餐廳點餐", "You are a waiter at a restaurant. The student is a customer ordering food."),
+                                ("飯店入住", "You are a hotel receptionist. The student is checking in."),
+                                ("求職面試", "You are an interviewer at a tech company. The student is the candidate."),
+                                ("問路", "You are a local resident. The student is a tourist asking for directions."),
+                                ("看醫生", "You are a doctor. The student is a patient describing symptoms."),
+                                ("購物", "You are a shop assistant. The student is looking to buy clothes."),
+                            ],
+                            value="You are a waiter at a restaurant. The student is a customer ordering food.",
+                            label="對話場景"
+                        )
+                        conv_history_state = gr.State(value="")
+                        conv_user_input = gr.Textbox(
+                            label="你的回覆",
+                            placeholder="用目標語言輸入你的對話...",
+                            lines=2
+                        )
+                        conv_send_btn = gr.Button("發送", variant="primary")
+                        conv_output = gr.Markdown(label="對話紀錄", value="*選擇場景後開始對話*")
+                        conv_reset_btn = gr.Button("重新開始對話", variant="secondary", size="sm")
+
+                        def handle_conversation(scenario, user_msg, practice_lang, native_lang, history):
+                            if not user_msg.strip():
+                                return history, "*請輸入對話內容*", ""
+                            new_history = history + f"\nStudent: {user_msg}" if history else f"Student: {user_msg}"
+                            reply = next_or_default(
+                                translator.conversation_practice(
+                                    scenario, user_msg, practice_lang, native_lang, history
+                                ),
+                                "對話生成失敗"
+                            )
+                            new_history += f"\nAI: {reply.split('---')[0].strip()}" if '---' in reply else f"\nAI: {reply}"
+                            return new_history, reply, ""
+
+                        conv_send_btn.click(
+                            fn=handle_conversation,
+                            inputs=[conv_scenario, conv_user_input, conv_practice_lang, conv_native_lang, conv_history_state],
+                            outputs=[conv_history_state, conv_output, conv_user_input]
+                        )
+                        conv_reset_btn.click(
+                            fn=lambda: ("", "*對話已重置，請開始新對話*", ""),
+                            outputs=[conv_history_state, conv_output, conv_user_input]
+                        )
+
+                    # --- 寫作批改 ---
+                    with gr.TabItem("寫作批改"):
+                        gr.Markdown("用目標語言寫一段文字，AI 會批改文法、評分並給出建議。")
+                        with gr.Row():
+                            writing_lang = gr.Dropdown(
+                                choices=language_choices,
+                                value="en_US",
+                                label="寫作語言"
+                            )
+                            writing_native_lang = gr.Dropdown(
+                                choices=language_choices,
+                                value="zh_TW",
+                                label="母語（回饋語言）"
+                            )
+                        writing_input = gr.Textbox(
+                            label="你的寫作",
+                            placeholder="用目標語言寫一段文字...",
+                            lines=8
+                        )
+                        writing_btn = gr.Button("批改", variant="primary")
+                        writing_output = gr.Markdown(label="批改結果")
+
+                        writing_btn.click(
+                            fn=lambda text, lang, native: next_or_default(
+                                translator.writing_correction(text, lang, native),
+                                "請輸入寫作內容。"
+                            ),
+                            inputs=[writing_input, writing_lang, writing_native_lang],
+                            outputs=writing_output
+                        )
+
+                    # --- 詞彙庫 ---
+                    with gr.TabItem("詞彙庫"):
+                        gr.Markdown("管理你的個人詞彙庫，支援 Spaced Repetition 複習排程。")
+
+                        with gr.Row():
+                            vocab_add_word = gr.Textbox(label="單字/片語", placeholder="e.g. postpone", scale=2)
+                            vocab_add_meaning = gr.Textbox(label="釋義", placeholder="e.g. 延期", scale=2)
+                            vocab_add_pos = gr.Textbox(label="詞性", placeholder="e.g. v.", scale=1)
+                        with gr.Row():
+                            vocab_add_example = gr.Textbox(label="例句", placeholder="The meeting was postponed.", scale=3)
+                            vocab_add_src = gr.Dropdown(choices=language_choices, value="en_US", label="語言", scale=1)
+                            vocab_add_tgt = gr.Dropdown(choices=language_choices, value="zh_TW", label="母語", scale=1)
+                        vocab_add_btn = gr.Button("加入詞彙庫", variant="primary", size="sm")
+                        vocab_add_status = gr.Textbox(label="", interactive=False, visible=True, max_lines=1)
+
+                        def add_vocab(word, meaning, pos, example, src, tgt):
+                            if not word.strip() or not meaning.strip():
+                                return "請輸入單字與釋義。"
+                            from learning import learning_manager
+                            learning_manager.add_vocabulary(
+                                word=word.strip(), meaning=meaning.strip(),
+                                source_lang=src, target_lang=tgt,
+                                part_of_speech=pos.strip(),
+                                example_sentence=example.strip()
+                            )
+                            return f"已加入：{word}"
+
+                        vocab_add_btn.click(
+                            fn=add_vocab,
+                            inputs=[vocab_add_word, vocab_add_meaning, vocab_add_pos, vocab_add_example, vocab_add_src, vocab_add_tgt],
+                            outputs=vocab_add_status
+                        )
+
+                        gr.Markdown("#### 待複習詞彙")
+                        vocab_review_btn = gr.Button("載入待複習", variant="secondary", size="sm")
+                        vocab_table = gr.Dataframe(
+                            headers=["ID", "單字", "詞性", "釋義", "下次複習", "重複次數"],
+                            datatype=["number", "str", "str", "str", "str", "number"],
+                            interactive=False
+                        )
+
+                        def load_due_vocab():
+                            from learning import learning_manager
+                            cards = learning_manager.get_due_cards(limit=20)
+                            data = []
+                            for c in cards:
+                                data.append([
+                                    c["id"], c["word"], c["part_of_speech"],
+                                    c["meaning"], c["next_review"][:10], c["repetitions"]
+                                ])
+                            return data
+
+                        vocab_review_btn.click(fn=load_due_vocab, outputs=vocab_table)
+
+                        with gr.Row():
+                            review_card_id = gr.Number(label="Card ID", precision=0)
+                            review_quality = gr.Slider(minimum=0, maximum=5, value=4, step=1,
+                                                       label="回憶品質 (0=完全忘記, 5=完美記住)")
+                            review_submit_btn = gr.Button("提交複習", variant="primary", size="sm")
+                        review_result = gr.Textbox(label="複習結果", interactive=False, max_lines=2)
+
+                        def submit_review(card_id, quality):
+                            from learning import learning_manager
+                            result = learning_manager.review_card(int(card_id), int(quality))
+                            if "error" in result:
+                                return result["error"]
+                            return f"下次複習：{result['next_review'][:10]}（間隔 {result['new_interval_days']} 天）"
+
+                        review_submit_btn.click(
+                            fn=submit_review,
+                            inputs=[review_card_id, review_quality],
+                            outputs=review_result
+                        )
+
+                    # --- 學習儀表板 ---
+                    with gr.TabItem("學習統計"):
+                        gr.Markdown("### 你的學習進度總覽")
+                        learn_dashboard_refresh = gr.Button("更新統計", variant="secondary", size="sm")
+
+                        with gr.Row():
+                            learn_kpi_words = gr.Markdown(elem_classes="kpi-card")
+                            learn_kpi_due = gr.Markdown(elem_classes="kpi-card")
+                            learn_kpi_mastered = gr.Markdown(elem_classes="kpi-card")
+                            learn_kpi_sessions = gr.Markdown(elem_classes="kpi-card")
+
+                        learn_weekly = gr.Markdown()
+
+                        def get_learning_dashboard():
+                            from learning import learning_manager
+                            stats = learning_manager.get_stats()
+                            kpi_w = f"### {stats['total_words']}\n總詞彙量"
+                            kpi_d = f"### {stats['due_for_review']}\n待複習"
+                            kpi_m = f"### {stats['mastered']}\n已掌握"
+                            kpi_s = f"### {stats['total_sessions']}\n學習次數"
+                            weekly_lines = ["#### 近 7 天學習活動"]
+                            if stats["weekly_activity"]:
+                                for day, cnt in sorted(stats["weekly_activity"].items()):
+                                    bar = "█" * min(cnt, 30)
+                                    weekly_lines.append(f"- {day}: {bar} ({cnt})")
+                            else:
+                                weekly_lines.append("*尚無紀錄*")
+                            if stats["session_breakdown"]:
+                                weekly_lines.append("\n#### 各類型練習統計")
+                                type_labels = {
+                                    "flashcard": "閃卡", "dictation": "聽寫",
+                                    "pronunciation": "發音", "conversation": "對話",
+                                    "writing": "寫作",
+                                }
+                                for stype, info in stats["session_breakdown"].items():
+                                    label = type_labels.get(stype, stype)
+                                    weekly_lines.append(f"- {label}: {info['count']} 次，平均 {info['avg_score']} 分")
+                            return kpi_w, kpi_d, kpi_m, kpi_s, "\n".join(weekly_lines)
+
+                        learn_dashboard_refresh.click(
+                            fn=get_learning_dashboard,
+                            outputs=[learn_kpi_words, learn_kpi_due, learn_kpi_mastered, learn_kpi_sessions, learn_weekly]
+                        )
+
                 gr.Markdown("""
                 > **學習小提示：**
                 > - 閃卡功能適合用於新聞、文章、技術文件的詞彙學習
                 > - 聽寫測驗可鍛鍊聽力與拼寫能力
                 > - 發音練習透過語音辨識比對，幫助矯正發音
-                > - 建議搭配「文字翻譯」的學習模式一起使用
+                > - 情境對話讓你在實際場景中練習口說
+                > - 寫作批改幫助提升書面表達能力
+                > - 詞彙庫使用 Spaced Repetition 自動安排複習時間
                 """)
 
             # ========== 甇瑕閮??? ==========

@@ -126,5 +126,83 @@ def dub_video(video_source: str, source_lang: str = "auto", target_lang: str = "
     return dubbed_path
 
 
+# ========== Learning Tools ==========
+from learning import learning_manager
+
+
+@mcp.tool()
+def translate_with_learning(text: str, source_lang: str = "auto", target_lang: str = "zh_TW") -> str:
+    """Translate text with learning annotations (vocabulary, grammar, examples)."""
+    result = ""
+    for chunk in translator.translate_learning(text, source_lang, target_lang):
+        result = chunk
+    return result
+
+
+@mcp.tool()
+def correct_writing(text: str, writing_lang: str = "en_US", native_lang: str = "zh_TW") -> str:
+    """Correct and score a piece of writing with detailed feedback."""
+    result = ""
+    for chunk in translator.writing_correction(text, writing_lang, native_lang):
+        result = chunk
+    return result
+
+
+@mcp.tool()
+def conversation_practice(scenario: str, user_message: str,
+                          practice_lang: str = "en_US", native_lang: str = "zh_TW",
+                          history: str = "") -> str:
+    """AI conversation partner for language practice in a given scenario."""
+    result = ""
+    for chunk in translator.conversation_practice(scenario, user_message, practice_lang, native_lang, history):
+        result = chunk
+    return result
+
+
+@mcp.tool()
+def generate_flashcards(text: str, source_lang: str = "auto",
+                        target_lang: str = "zh_TW", count: int = 5) -> str:
+    """Generate vocabulary flashcards from input text."""
+    result = ""
+    for chunk in translator.generate_flashcards(text, source_lang, target_lang, count):
+        result = chunk
+    return result
+
+
+@mcp.tool()
+def add_vocabulary(word: str, meaning: str, source_lang: str = "en_US",
+                   target_lang: str = "zh_TW", part_of_speech: str = "",
+                   example_sentence: str = "") -> dict:
+    """Add a vocabulary word to the learning bank."""
+    row_id = learning_manager.add_vocabulary(
+        word=word, meaning=meaning,
+        source_lang=source_lang, target_lang=target_lang,
+        part_of_speech=part_of_speech, example_sentence=example_sentence,
+    )
+    return {"id": row_id, "word": word}
+
+
+@mcp.tool()
+def get_due_vocabulary(source_lang: str = "", target_lang: str = "", limit: int = 20) -> list:
+    """Get vocabulary cards due for spaced repetition review."""
+    return learning_manager.get_due_cards(
+        source_lang=source_lang or None,
+        target_lang=target_lang or None,
+        limit=limit,
+    )
+
+
+@mcp.tool()
+def review_vocabulary(card_id: int, quality: int) -> dict:
+    """Submit a spaced repetition review (quality 0-5) for a vocabulary card."""
+    return learning_manager.review_card(card_id, quality)
+
+
+@mcp.tool()
+def get_learning_stats() -> dict:
+    """Get learning progress statistics."""
+    return learning_manager.get_stats()
+
+
 if __name__ == "__main__":
     mcp.run()
