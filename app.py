@@ -14,10 +14,11 @@ from languages import LANGUAGES, COMMON_LANGUAGES, get_language_info
 # ============ 隞撣豢 ============
 TITLE = "TranslateGemma 多語翻譯助手"
 DESCRIPTION = """
-支援文字、圖片、PDF、語音、即時串流、影片翻譯與會議摘要。
+支援文字、圖片、PDF、語音、即時串流、影片翻譯、會議摘要與語言學習。
 
 **功能特色：**
-- 文字翻譯（55+ 語言）
+- 文字翻譯（55+ 語言）+ 學習模式（詞彙/文法/例句解析）
+- 語言學習工具（單字閃卡、聽寫測驗、發音練習）
 - 圖片 OCR 與翻譯
 - PDF 逐頁翻譯
 - 語音辨識與翻譯（含 TTS）
@@ -128,29 +129,44 @@ def get_dropdown_choices():
 # ========== 甇瑕閮?蝞∠? ==========
 from history import history_manager
 
-def translate_text(text: str, source_lang: str, target_lang: str, glossary_text: str = "", style_guide: str = ""):
-    """Text translation (streaming output)."""
+
+def next_or_default(generator, default=""):
+    """Exhaust a generator and return the last value, or default if empty."""
+    result = default
+    for item in generator:
+        result = item
+    return result
+
+def translate_text(text: str, source_lang: str, target_lang: str, glossary_text: str = "", style_guide: str = "", learning_mode: bool = False):
+    """Text translation (streaming output), optionally with learning annotations."""
     if not text.strip():
         yield "Please enter text to translate."
         return
 
     src_info = get_language_info(source_lang)
     tgt_info = get_language_info(target_lang)
-    yield f"Translating... ({src_info[0]} -> {tgt_info[0]})\n"
 
-    full_translation = ""
-    for result in translator.translate_stream(
-        text,
-        source_lang,
-        target_lang,
-        glossary=glossary_text,
-        style=style_guide,
-    ):
-        full_translation = result
-        yield result
+    if learning_mode:
+        yield f"學習模式翻譯中... ({src_info[0]} -> {tgt_info[0]})\n"
+        full_translation = ""
+        for result in translator.translate_learning(text, source_lang, target_lang):
+            full_translation = result
+            yield result
+    else:
+        yield f"Translating... ({src_info[0]} -> {tgt_info[0]})\n"
+        full_translation = ""
+        for result in translator.translate_stream(
+            text,
+            source_lang,
+            target_lang,
+            glossary=glossary_text,
+            style=style_guide,
+        ):
+            full_translation = result
+            yield result
 
     history_manager.add_history(
-        type="text",
+        type="learning" if learning_mode else "text",
         source_lang=source_lang,
         target_lang=target_lang,
         original_content=text,
@@ -158,6 +174,7 @@ def translate_text(text: str, source_lang: str, target_lang: str, glossary_text:
         details={
             "glossary_applied": bool(glossary_text.strip()) if glossary_text else False,
             "style_applied": bool(style_guide.strip()) if style_guide else False,
+            "learning_mode": learning_mode,
         },
     )
 
@@ -583,7 +600,7 @@ def create_history_tab():
             refresh_btn = gr.Button("重新整理", size="sm")
             clear_btn = gr.Button("清空全部", size="sm", variant="stop")
             filter_type = gr.Dropdown(
-                choices=["All", "text", "image", "pdf", "voice", "video", "video_batch"],
+                choices=["All", "text", "learning", "image", "pdf", "voice", "video", "video_batch"],
                 value="All",
                 label="類型篩選"
             )
@@ -737,6 +754,13 @@ def create_ui():
                         scale=1,
                         interactive=False
                     )
+                with gr.Row():
+                    learning_mode_toggle = gr.Checkbox(
+                        label="學習模式",
+                        value=False,
+                        info="啟用後翻譯結果會附帶詞彙、文法解析與相似表達"
+                    )
+
                 with gr.Accordion("進階翻譯設定（術語表 / 風格）", open=False):
                     glossary_text = gr.Textbox(
                         label="術語表（每行一條，格式: source => target）",
@@ -749,26 +773,26 @@ def create_ui():
                         lines=3
                     )
 
-                
+
                 translate_btn = gr.Button("開始翻譯", variant="primary", size="lg")
-                
+
                 # 蝬?鈭辣
                 translate_btn.click(
                     fn=translate_text,
-                    inputs=[input_text, source_lang, target_lang, glossary_text, style_guide],
+                    inputs=[input_text, source_lang, target_lang, glossary_text, style_guide, learning_mode_toggle],
                     outputs=output_text
                 )
-                
+
                 swap_btn.click(
                     fn=swap_languages,
                     inputs=[source_lang, target_lang],
                     outputs=[source_lang, target_lang]
                 )
-                
+
                 # Enter ?萇蕃霅?
                 input_text.submit(
                     fn=translate_text,
-                    inputs=[input_text, source_lang, target_lang, glossary_text, style_guide],
+                    inputs=[input_text, source_lang, target_lang, glossary_text, style_guide, learning_mode_toggle],
                     outputs=output_text
                 )
             
@@ -1388,6 +1412,175 @@ def create_ui():
                 > - If summaries are too short, try a larger model or better audio quality.
                 """)
             
+            # ========== 語言學習分頁 ==========
+            with gr.TabItem("語言學習"):
+                gr.Markdown("### 互動式語言學習工具")
+
+                with gr.Tabs():
+                    # --- 閃卡 ---
+                    with gr.TabItem("單字閃卡"):
+                        gr.Markdown("輸入一段文字，自動萃取重點詞彙並生成閃卡。")
+                        with gr.Row():
+                            flash_source_lang = gr.Dropdown(
+                                choices=[("自動偵測", "auto")] + language_choices,
+                                value="en_US",
+                                label="來源語言"
+                            )
+                            flash_target_lang = gr.Dropdown(
+                                choices=language_choices,
+                                value="zh_TW",
+                                label="母語（解釋語言）"
+                            )
+                            flash_count = gr.Slider(
+                                minimum=3, maximum=10, value=5, step=1,
+                                label="閃卡數量"
+                            )
+
+                        flash_input = gr.Textbox(
+                            label="輸入文字素材",
+                            placeholder="貼上一段英文文章、新聞、或任何學習素材...",
+                            lines=5
+                        )
+                        flash_btn = gr.Button("生成閃卡", variant="primary")
+                        flash_output = gr.Markdown(label="閃卡結果")
+
+                        flash_btn.click(
+                            fn=lambda text, src, tgt, cnt: next_or_default(
+                                translator.generate_flashcards(text, src, tgt, int(cnt)),
+                                "請輸入文字素材。"
+                            ),
+                            inputs=[flash_input, flash_source_lang, flash_target_lang, flash_count],
+                            outputs=flash_output
+                        )
+
+                    # --- 聽寫測驗 ---
+                    with gr.TabItem("聽寫測驗"):
+                        gr.Markdown("系統會朗讀一段文字，你來聽寫，然後檢查正確率。")
+                        with gr.Row():
+                            dictation_lang = gr.Dropdown(
+                                choices=language_choices,
+                                value="en_US",
+                                label="練習語言"
+                            )
+                            dictation_target_lang = gr.Dropdown(
+                                choices=language_choices,
+                                value="zh_TW",
+                                label="回饋語言"
+                            )
+
+                        dictation_text = gr.Textbox(
+                            label="原文（系統會朗讀此內容）",
+                            placeholder="輸入或貼上要練習聽寫的句子...",
+                            lines=3
+                        )
+                        dictation_play_btn = gr.Button("播放語音", variant="secondary")
+                        dictation_audio = gr.Audio(
+                            label="語音播放",
+                            type="filepath",
+                            interactive=False
+                        )
+
+                        dictation_user_input = gr.Textbox(
+                            label="你的聽寫內容",
+                            placeholder="聽完後在這裡輸入你聽到的內容...",
+                            lines=3
+                        )
+                        dictation_check_btn = gr.Button("檢查結果", variant="primary")
+                        dictation_result = gr.Markdown(label="聽寫回饋")
+
+                        def play_dictation_audio(text, lang):
+                            if not text.strip():
+                                return None
+                            try:
+                                loop = asyncio.new_event_loop()
+                                asyncio.set_event_loop(loop)
+                                path = loop.run_until_complete(translator.text_to_speech(text, lang))
+                                loop.close()
+                                return path
+                            except Exception:
+                                return None
+
+                        dictation_play_btn.click(
+                            fn=play_dictation_audio,
+                            inputs=[dictation_text, dictation_lang],
+                            outputs=dictation_audio
+                        )
+
+                        dictation_check_btn.click(
+                            fn=lambda orig, user_in, tgt: translator.dictation_check(orig, user_in, tgt),
+                            inputs=[dictation_text, dictation_user_input, dictation_target_lang],
+                            outputs=dictation_result
+                        )
+
+                    # --- 發音練習 ---
+                    with gr.TabItem("發音練習"):
+                        gr.Markdown("先聽範讀，再錄音跟讀，系統會比對你的發音。")
+                        with gr.Row():
+                            pronun_lang = gr.Dropdown(
+                                choices=language_choices,
+                                value="en_US",
+                                label="練習語言"
+                            )
+                            pronun_feedback_lang = gr.Dropdown(
+                                choices=language_choices,
+                                value="zh_TW",
+                                label="回饋語言"
+                            )
+
+                        pronun_text = gr.Textbox(
+                            label="練習句子",
+                            placeholder="輸入要練習的句子...",
+                            lines=2
+                        )
+
+                        with gr.Row():
+                            pronun_play_btn = gr.Button("播放範讀", variant="secondary")
+                            pronun_ref_audio = gr.Audio(
+                                label="範讀語音",
+                                type="filepath",
+                                interactive=False
+                            )
+
+                        with gr.Row():
+                            pronun_user_audio = gr.Audio(
+                                sources=["microphone"],
+                                type="filepath",
+                                label="錄下你的發音"
+                            )
+
+                        pronun_check_btn = gr.Button("比對發音", variant="primary")
+                        pronun_result = gr.Markdown(label="發音回饋")
+
+                        pronun_play_btn.click(
+                            fn=play_dictation_audio,
+                            inputs=[pronun_text, pronun_lang],
+                            outputs=pronun_ref_audio
+                        )
+
+                        def check_pronunciation(ref_text, user_audio, practice_lang, feedback_lang):
+                            if not ref_text.strip():
+                                return "請先輸入練習句子。"
+                            if user_audio is None:
+                                return "請先錄音。"
+                            recognized, _ = translator.speech_to_text(user_audio, practice_lang)
+                            if not recognized or recognized.startswith("未安裝") or recognized.startswith("語音辨識失敗"):
+                                return f"語音辨識失敗：{recognized}"
+                            return translator.dictation_check(ref_text, recognized, feedback_lang)
+
+                        pronun_check_btn.click(
+                            fn=check_pronunciation,
+                            inputs=[pronun_text, pronun_user_audio, pronun_lang, pronun_feedback_lang],
+                            outputs=pronun_result
+                        )
+
+                gr.Markdown("""
+                > **學習小提示：**
+                > - 閃卡功能適合用於新聞、文章、技術文件的詞彙學習
+                > - 聽寫測驗可鍛鍊聽力與拼寫能力
+                > - 發音練習透過語音辨識比對，幫助矯正發音
+                > - 建議搭配「文字翻譯」的學習模式一起使用
+                """)
+
             # ========== 甇瑕閮??? ==========
             create_history_tab()
             

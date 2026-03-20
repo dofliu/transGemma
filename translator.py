@@ -69,6 +69,146 @@ class TranslateGemmaService:
             )
         return "\n\n".join(rules)
 
+    def _build_learning_prompt(self, text: str, source_code: str, target_code: str) -> str:
+        """Build a prompt that produces translation + vocabulary + grammar + examples."""
+        src_info = get_language_info(source_code)
+        tgt_info = get_language_info(target_code)
+        _, src_en, _ = src_info
+        _, tgt_en, _ = tgt_info
+
+        return f"""You are a language learning assistant helping a {tgt_en} speaker learn {src_en}.
+
+Given the following {src_en} text, provide a structured learning breakdown in {tgt_en}.
+
+IMPORTANT: Output MUST follow this exact format with these section headers:
+
+## 翻譯
+(Provide an accurate {tgt_en} translation of the text)
+
+## 重點詞彙
+(List 3-6 key vocabulary words/phrases from the text. For each word, provide:)
+- **word** (part of speech) {tgt_en} meaning — example sentence
+
+## 文法解析
+(Explain 1-3 grammar points found in the text, in {tgt_en})
+
+## 相似表達
+(Provide 2-3 alternative ways to express the same meaning in {src_en}, with {tgt_en} translations)
+
+Text to analyze:
+
+{text}"""
+
+    def translate_learning(self, text: str, source_code: str, target_code: str) -> Generator[str, None, None]:
+        """Translate with learning annotations (vocabulary, grammar, examples)."""
+        if not text.strip():
+            yield ""
+            return
+
+        resolved_source = self._resolve_source_code(text, source_code)
+        prompt = self._build_learning_prompt(text, resolved_source, target_code)
+
+        try:
+            stream = ollama.chat(
+                model=self.model_name,
+                messages=[{"role": "user", "content": prompt}],
+                stream=True,
+            )
+            full_response = ""
+            for chunk in stream:
+                content = chunk["message"]["content"]
+                full_response += content
+                yield full_response
+        except Exception as exc:
+            yield f"學習模式翻譯失敗：{exc}"
+
+    def generate_flashcards(self, text: str, source_code: str, target_code: str, count: int = 5) -> Generator[str, None, None]:
+        """Generate vocabulary flashcards from input text."""
+        if not text.strip():
+            yield ""
+            return
+
+        resolved_source = self._resolve_source_code(text, source_code)
+        src_info = get_language_info(resolved_source)
+        tgt_info = get_language_info(target_code)
+        _, src_en, _ = src_info
+        _, tgt_en, _ = tgt_info
+
+        prompt = f"""You are a language learning flashcard generator.
+
+From the following {src_en} text, extract {count} important vocabulary words or phrases and create flashcards.
+
+Output format (one card per block, use --- as separator):
+
+**1. word/phrase**
+- 詞性: (part of speech)
+- 釋義: ({tgt_en} meaning)
+- 例句: (example sentence in {src_en})
+- 例句翻譯: ({tgt_en} translation of example)
+
+---
+
+**2. word/phrase**
+...
+
+Text:
+
+{text}"""
+
+        try:
+            stream = ollama.chat(
+                model=self.model_name,
+                messages=[{"role": "user", "content": prompt}],
+                stream=True,
+            )
+            full_response = ""
+            for chunk in stream:
+                content = chunk["message"]["content"]
+                full_response += content
+                yield full_response
+        except Exception as exc:
+            yield f"閃卡生成失敗：{exc}"
+
+    def dictation_check(self, original: str, user_input: str, target_code: str) -> str:
+        """Compare user dictation input against original text and provide feedback."""
+        if not original.strip() or not user_input.strip():
+            return "請提供原文與您的聽寫內容。"
+
+        tgt_info = get_language_info(target_code)
+        _, tgt_en, _ = tgt_info
+
+        prompt = f"""You are a language learning assistant. A student listened to audio and wrote down what they heard.
+
+Compare the original text with the student's attempt and provide feedback in {tgt_en}.
+
+Original text:
+{original}
+
+Student's attempt:
+{user_input}
+
+Provide feedback in this format:
+## 正確率
+(Calculate approximate accuracy percentage)
+
+## 錯誤分析
+(List specific differences: missing words, misspellings, wrong words)
+
+## 正確答案
+{original}
+
+## 學習建議
+(Brief tips for improvement based on the errors found)"""
+
+        try:
+            response = ollama.chat(
+                model=self.model_name,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            return response["message"]["content"]
+        except Exception as exc:
+            return f"聽寫檢查失敗：{exc}"
+
     def _build_prompt(self, text: str, source_code: str, target_code: str, glossary: str = "", style: str = "") -> str:
         src_info = get_language_info(source_code)
         tgt_info = get_language_info(target_code)

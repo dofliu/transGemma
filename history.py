@@ -42,7 +42,7 @@ class HistoryManager:
         新增一筆歷史記錄
         
         Args:
-            type: 'text', 'image', 'pdf', 'voice', 'video'
+            type: 'text', 'learning', 'image', 'pdf', 'voice', 'video'
             source_lang: 來源語言代碼
             target_lang: 目標語言代碼
             original_content: 原始內容或檔案路徑
