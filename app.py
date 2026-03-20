@@ -10,14 +10,18 @@ import re
 from urllib.parse import urlparse, parse_qs, unquote
 from translator import translator
 from languages import LANGUAGES, COMMON_LANGUAGES, get_language_info
+from logger import get_logger
+
+log = get_logger(__name__)
 
 # ============ 隞撣豢 ============
-TITLE = "TranslateGemma 多語翻譯助手"
+TITLE = "TranslateGemma"
 DESCRIPTION = """
-支援文字、圖片、PDF、語音、即時串流、影片翻譯與會議摘要。
+支援文字、圖片、PDF、語音、即時串流、影片翻譯、會議摘要與語言學習。
 
 **功能特色：**
-- 文字翻譯（55+ 語言）
+- 文字翻譯（55+ 語言）+ 學習模式（詞彙/文法/例句解析）
+- 語言學習工具（單字閃卡、聽寫測驗、發音練習）
 - 圖片 OCR 與翻譯
 - PDF 逐頁翻譯
 - 語音辨識與翻譯（含 TTS）
@@ -27,6 +31,7 @@ APP_CSS = """
 :root {
   --tg-primary: #e9782d;
   --tg-secondary: #1f6feb;
+  --tg-accent: #10b981;
   --tg-bg: #f5f7fb;
   --tg-surface: #ffffff;
   --tg-text: #10213a;
@@ -35,66 +40,87 @@ APP_CSS = """
 
 .gradio-container {
   background:
-    radial-gradient(circle at 10% -10%, rgba(233, 120, 45, 0.12), transparent 32%),
-    radial-gradient(circle at 90% -20%, rgba(31, 111, 235, 0.14), transparent 34%),
+    radial-gradient(circle at 10% -10%, rgba(233, 120, 45, 0.08), transparent 32%),
+    radial-gradient(circle at 90% -20%, rgba(31, 111, 235, 0.08), transparent 34%),
     var(--tg-bg);
 }
 
+/* ── Hero Banner ── */
 .tg-hero {
-  background: linear-gradient(120deg, #0f172a 0%, #1f2937 45%, #1f6feb 100%);
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 40%, var(--tg-secondary) 100%);
   color: #fff;
   border-radius: 16px;
-  padding: 20px 24px;
-  margin-bottom: 16px;
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.22);
+  padding: 22px 28px;
+  margin-bottom: 8px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
-
-.tg-hero * {
-  color: #ffffff !important;
-}
-
+.tg-hero * { color: #ffffff !important; }
 .tg-hero h1 {
-  margin: 0 0 8px 0;
-  font-size: 30px;
-  letter-spacing: 0.2px;
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+  margin: 0; font-size: 26px; letter-spacing: 0.3px;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.3);
 }
-
 .tg-hero p {
-  margin: 0;
-  opacity: 0.98;
-  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.3);
+  margin: 4px 0 0 0; opacity: 0.9; font-size: 14px;
+}
+.tg-hero-badge {
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.25);
+  border-radius: 20px;
+  padding: 6px 16px;
+  font-size: 13px;
+  white-space: nowrap;
 }
 
+/* ── Top-level category tabs ── */
+.tg-main-tabs > .tab-nav {
+  background: var(--tg-surface);
+  border-radius: 14px;
+  padding: 6px;
+  margin-bottom: 10px;
+  box-shadow: 0 2px 12px rgba(16, 33, 58, 0.06);
+  border: 1px solid #e5eaf3;
+}
+.tg-main-tabs > .tab-nav button {
+  border-radius: 10px !important;
+  margin: 0 3px !important;
+  padding: 10px 18px !important;
+  font-weight: 600 !important;
+  font-size: 15px !important;
+  transition: all 0.2s ease !important;
+}
+.tg-main-tabs > .tab-nav button.selected {
+  background: linear-gradient(135deg, var(--tg-primary), #f3a253) !important;
+  color: #fff !important;
+  box-shadow: 0 4px 12px rgba(233, 120, 45, 0.3) !important;
+}
+
+/* ── Sub-tabs ── */
+.tabs .tab-nav button {
+  border-radius: 8px !important;
+  margin-right: 4px !important;
+  font-size: 13.5px !important;
+}
+
+/* ── KPI Cards ── */
 .kpi-card {
   background: var(--tg-surface) !important;
   border: 1px solid #e5eaf3;
   border-radius: 14px;
-  box-shadow: 0 8px 20px rgba(16, 33, 58, 0.05);
+  box-shadow: 0 4px 16px rgba(16, 33, 58, 0.04);
+  text-align: center;
 }
-
-.kpi-card .prose {
-  margin: 0;
-}
-
-.kpi-card h3 {
-  margin-bottom: 6px;
-}
-
-.kpi-card p {
-  color: var(--tg-muted);
-}
+.kpi-card .prose { margin: 0; }
+.kpi-card h3 { margin-bottom: 4px; font-size: 28px; }
+.kpi-card p { color: var(--tg-muted); font-size: 13px; }
 
 .section-card {
   background: rgba(255, 255, 255, 0.9);
   border: 1px solid #e6ebf3;
   border-radius: 14px;
   padding: 8px;
-}
-
-.tabs .tab-nav button {
-  border-radius: 10px !important;
-  margin-right: 6px !important;
 }
 
 button.primary {
@@ -128,29 +154,44 @@ def get_dropdown_choices():
 # ========== 甇瑕閮?蝞∠? ==========
 from history import history_manager
 
-def translate_text(text: str, source_lang: str, target_lang: str, glossary_text: str = "", style_guide: str = ""):
-    """Text translation (streaming output)."""
+
+def next_or_default(generator, default=""):
+    """Exhaust a generator and return the last value, or default if empty."""
+    result = default
+    for item in generator:
+        result = item
+    return result
+
+def translate_text(text: str, source_lang: str, target_lang: str, glossary_text: str = "", style_guide: str = "", learning_mode: bool = False):
+    """Text translation (streaming output), optionally with learning annotations."""
     if not text.strip():
         yield "Please enter text to translate."
         return
 
     src_info = get_language_info(source_lang)
     tgt_info = get_language_info(target_lang)
-    yield f"Translating... ({src_info[0]} -> {tgt_info[0]})\n"
 
-    full_translation = ""
-    for result in translator.translate_stream(
-        text,
-        source_lang,
-        target_lang,
-        glossary=glossary_text,
-        style=style_guide,
-    ):
-        full_translation = result
-        yield result
+    if learning_mode:
+        yield f"學習模式翻譯中... ({src_info[0]} -> {tgt_info[0]})\n"
+        full_translation = ""
+        for result in translator.translate_learning(text, source_lang, target_lang):
+            full_translation = result
+            yield result
+    else:
+        yield f"Translating... ({src_info[0]} -> {tgt_info[0]})\n"
+        full_translation = ""
+        for result in translator.translate_stream(
+            text,
+            source_lang,
+            target_lang,
+            glossary=glossary_text,
+            style=style_guide,
+        ):
+            full_translation = result
+            yield result
 
     history_manager.add_history(
-        type="text",
+        type="learning" if learning_mode else "text",
         source_lang=source_lang,
         target_lang=target_lang,
         original_content=text,
@@ -158,6 +199,7 @@ def translate_text(text: str, source_lang: str, target_lang: str, glossary_text:
         details={
             "glossary_applied": bool(glossary_text.strip()) if glossary_text else False,
             "style_applied": bool(style_guide.strip()) if style_guide else False,
+            "learning_mode": learning_mode,
         },
     )
 
@@ -229,7 +271,7 @@ def translate_voice(audio, source_lang: str, target_lang: str):
         loop.close()
     except Exception as e:
         audio_path = None
-        print(f"TTS failed: {e}")
+        log.warning("TTS failed: %s", e)
 
     history_manager.add_history(
         type="voice",
@@ -554,12 +596,12 @@ def process_stream_chunk(audio_chunk, source_lang: str, target_lang: str, silenc
                 tts_audio_path = loop.run_until_complete(translator.text_to_speech(translated, target_lang))
                 loop.close()
             except Exception as e:
-                print(f"TTS failed: {e}")
+                log.warning("TTS failed: %s", e)
 
         os.remove(temp_path)
 
     except Exception as e:
-        print(f"Streaming pipeline failed: {e}")
+        log.error("Streaming pipeline failed: %s", e)
 
     status = "Current segment translated. Keep speaking..."
     return stream_state.full_transcript.strip(), stream_state.full_translation.strip(), status, tts_audio_path
@@ -583,7 +625,7 @@ def create_history_tab():
             refresh_btn = gr.Button("重新整理", size="sm")
             clear_btn = gr.Button("清空全部", size="sm", variant="stop")
             filter_type = gr.Dropdown(
-                choices=["All", "text", "image", "pdf", "voice", "video", "video_batch"],
+                choices=["All", "text", "learning", "image", "pdf", "voice", "video", "video_batch"],
                 value="All",
                 label="類型篩選"
             )
@@ -668,16 +710,20 @@ def create_ui():
     ) as demo:
         gr.HTML(f"<style>{APP_CSS}</style>")
         gr.HTML(
-            f"""
+            """
             <section class="tg-hero">
-              <h1>{TITLE}</h1>
-              <p>本地優先的全方位翻譯工作台：文字、文件、語音、影片、會議摘要一次完成。</p>
+              <div>
+                <h1>TranslateGemma</h1>
+                <p>翻譯 | 學習 | 會議 - 本地 AI 驅動的多語工作台</p>
+              </div>
+              <span class="tg-hero-badge">55+ 語言</span>
             </section>
             """
         )
         
-        with gr.Tabs():
-            with gr.TabItem("儀表板"):
+        with gr.Tabs(elem_classes="tg-main-tabs") as main_tabs:
+
+            with gr.TabItem("首頁"):
                 with gr.Row():
                     dashboard_refresh = gr.Button("更新儀表板", variant="secondary")
 
@@ -704,719 +750,1105 @@ def create_ui():
                     outputs=[kpi_total, kpi_text, kpi_media, kpi_latest, recent_tasks],
                 )
 
-            # ========== ??蝧餉陌?? ==========
-            with gr.TabItem("文字翻譯"):
-                with gr.Row():
-                    source_lang = gr.Dropdown(
-                        choices=language_choices,
-                        value="en_US",
-                        label="來源語言",
-                        scale=2
-                    )
-                    
-                    swap_btn = gr.Button("交換", elem_classes="swap-btn", scale=0)
-                    
-                    target_lang = gr.Dropdown(
-                        choices=language_choices,
-                        value="zh_TW",
-                        label="目標語言",
-                        scale=2
-                    )
-                
-                with gr.Row():
-                    input_text = gr.Textbox(
-                        label="輸入文字",
-                        placeholder="請輸入要翻譯的內容...",
-                        lines=8,
-                        scale=1
-                    )
-                    
-                    output_text = gr.Textbox(
-                        label="翻譯結果",
-                        lines=8,
-                        scale=1,
-                        interactive=False
-                    )
-                with gr.Accordion("進階翻譯設定（術語表 / 風格）", open=False):
-                    glossary_text = gr.Textbox(
-                        label="術語表（每行一條，格式: source => target）",
-                        placeholder="AI => 人工智慧\nLLM => 大型語言模型",
-                        lines=4
-                    )
-                    style_guide = gr.Textbox(
-                        label="翻譯風格指南",
-                        placeholder="例：正式、簡潔、保留專有名詞英文括註",
-                        lines=3
-                    )
-
-                
-                translate_btn = gr.Button("開始翻譯", variant="primary", size="lg")
-                
-                # 蝬?鈭辣
-                translate_btn.click(
-                    fn=translate_text,
-                    inputs=[input_text, source_lang, target_lang, glossary_text, style_guide],
-                    outputs=output_text
-                )
-                
-                swap_btn.click(
-                    fn=swap_languages,
-                    inputs=[source_lang, target_lang],
-                    outputs=[source_lang, target_lang]
-                )
-                
-                # Enter ?萇蕃霅?
-                input_text.submit(
-                    fn=translate_text,
-                    inputs=[input_text, source_lang, target_lang, glossary_text, style_guide],
-                    outputs=output_text
-                )
-            
-            # ========== ??蝧餉陌?? ==========
-            with gr.TabItem("圖片翻譯"):
-                gr.Markdown("### 上傳圖片後，使用 Tesseract OCR 進行辨識與翻譯")
-                
-                with gr.Row():
-                    image_input = gr.Image(
-                        label="上傳圖片",
-                        type="filepath",
-                        scale=1
-                    )
-                    
-                    image_output = gr.Textbox(
-                        label="辨識與翻譯結果",
-                        lines=12,
-                        scale=1,
-                        interactive=False
-                    )
-                
-                with gr.Row():
-                    image_source_lang = gr.Dropdown(
-                        choices=[("自動偵測", "auto")] + language_choices,
-                        value="auto",
-                        label="來源語言"
-                    )
-                    
-                    image_target_lang = gr.Dropdown(
-                        choices=language_choices,
-                        value="zh_TW",
-                        label="目標語言"
-                    )
-                    
-                    image_translate_btn = gr.Button("OCR 並翻譯", variant="primary")
-                
-                image_translate_btn.click(
-                    fn=translate_image,
-                    inputs=[image_input, image_source_lang, image_target_lang],
-                    outputs=image_output
-                )
-            
-            # ========== PDF 蝧餉陌?? ==========
-            with gr.TabItem("PDF 翻譯"):
-                gr.Markdown("### 上傳 PDF 文件後，可逐頁翻譯內容")
-                
-                with gr.Row():
-                    pdf_input = gr.File(
-                        label="上傳 PDF",
-                        file_types=[".pdf"],
-                        type="filepath",
-                        scale=1
-                    )
-                    
-                    pdf_output = gr.Textbox(
-                        label="翻譯結果",
-                        lines=15,
-                        scale=2,
-                        interactive=False
-                    )
-                
-                with gr.Row():
-                    pdf_source_lang = gr.Dropdown(
-                        choices=language_choices,
-                        value="en_US",
-                        label="PDF 來源語言"
-                    )
-                    
-                    pdf_target_lang = gr.Dropdown(
-                        choices=language_choices,
-                        value="zh_TW",
-                        label="目標語言"
-                    )
-                    
-                    pdf_translate_btn = gr.Button("翻譯 PDF", variant="primary")
-                
-                pdf_translate_btn.click(
-                    fn=translate_pdf,
-                    inputs=[pdf_input, pdf_source_lang, pdf_target_lang],
-                    outputs=pdf_output
-                )
-                
-                gr.Markdown("""
-                > **提示：**
-                > - PDF 翻譯採逐頁處理，文件越大耗時越長。
-                > - 建議先測試 1-2 頁，確認品質後再翻完整文件。
-                > - 若為掃描 PDF，先確保 OCR 可讀性。
-                """)
-            
-            # ========== 隤蝧餉陌?? ==========
-            with gr.TabItem("語音翻譯"):
-                gr.Markdown("### 錄音或上傳音檔，系統會先辨識再翻譯")
-                
-                with gr.Row():
-                    voice_source_lang = gr.Dropdown(
-                        choices=[("自動偵測", "auto")] + language_choices,
-                        value="auto",
-                        label="來源語言"
-                    )
-                    
-                    voice_target_lang = gr.Dropdown(
-                        choices=language_choices,
-                        value="zh_TW",
-                        label="目標語言"
-                    )
-                
-                with gr.Row():
-                    audio_input = gr.Audio(
-                        sources=["microphone", "upload"],
-                        type="filepath",
-                        label="語音輸入（錄音或上傳）"
-                    )
-                    
-                    audio_output = gr.Audio(
-                        label="語音輸出（TTS）",
-                        type="filepath",
-                        interactive=False
-                    )
-                
-                with gr.Row():
-                    recognized_text = gr.Textbox(
-                        label="語音辨識文字",
-                        lines=3,
-                        interactive=False
-                    )
-                    
-                    translated_text = gr.Textbox(
-                        label="翻譯文字",
-                        lines=3,
-                        interactive=False
-                    )
-                
-                voice_translate_btn = gr.Button("語音翻譯", variant="primary", size="lg")
-                
-                voice_translate_btn.click(
-                    fn=translate_voice,
-                    inputs=[audio_input, voice_source_lang, voice_target_lang],
-                    outputs=[recognized_text, translated_text, audio_output]
-                )
-                
-                gr.Markdown("""
-                > **提示：**
-                > - 建議音檔小於 150MB。
-                > - TTS 使用 Edge 語音服務。
-                > - 支援常見 wav/mp3。
-                """)
-            
-            # ========== ?單?蝧餉陌?? ==========
-            with gr.TabItem("即時語音翻譯"):
-                gr.Markdown("### 即時語音翻譯 - 邊說邊翻")
-                
-                with gr.Row():
-                    stream_source_lang = gr.Dropdown(
-                        choices=[("自動偵測", "auto")] + language_choices,
-                        value="en_US",
-                        label="來源語言"
-                    )
-                    
-                    stream_target_lang = gr.Dropdown(
-                        choices=language_choices,
-                        value="zh_TW",
-                        label="目標語言"
-                    )
-                
-                with gr.Row():
-                    silence_threshold_slider = gr.Slider(
-                        minimum=0.01,
-                        maximum=0.10,
-                        value=0.02,
-                        step=0.005,
-                        label="靜音判定閾值（越高越容易判定為靜音）",
-                        info="可依環境噪音調整"
-                    )
-                
-                stream_status = gr.Textbox(
-                    label="即時狀態",
-                    value="等待音訊輸入...",
-                    interactive=False
-                )
-                
-                stream_audio = gr.Audio(
-                    sources=["microphone"],
-                    streaming=True,
-                    type="numpy",
-                    label="即時語音輸入（麥克風）"
-                )
-                
-                with gr.Row():
-                    stream_transcript = gr.Textbox(
-                        label="即時辨識文字",
-                        lines=6,
-                        interactive=False
-                    )
-                    
-                    stream_translation = gr.Textbox(
-                        label="即時翻譯文字",
-                        lines=6,
-                        interactive=False
-                    )
-                
-                stream_tts_output = gr.Audio(
-                    label="即時翻譯語音輸出",
-                    type="filepath",
-                    autoplay=True,
-                    interactive=False
-                )
-                
-                reset_btn = gr.Button("重設", variant="secondary")
-                
-                # 銝脫???
-                stream_audio.stream(
-                    fn=process_stream_chunk,
-                    inputs=[stream_audio, stream_source_lang, stream_target_lang, silence_threshold_slider],
-                    outputs=[stream_transcript, stream_translation, stream_status, stream_tts_output]
-                )
-                
-                reset_btn.click(
-                    fn=reset_stream_state,
-                    outputs=[stream_transcript, stream_translation, stream_status, stream_tts_output]
-                )
-                
-                gr.Markdown("""
-                > **使用建議：**
-                > - 每段 2-3 秒語音有最佳效果。
-                > - 背景噪音過高時，請提高靜音閾值。
-                > - 網路或模型忙碌時可能延遲。
-                """)
-            
-            # ========== 敶梁?蝧餉陌?? ==========
-            with gr.TabItem("影片翻譯"):
-                gr.Markdown("### 影片翻譯與配音 - 支援多語目標")
-                
-                with gr.Row():
-                    video_url_input = gr.Textbox(
-                        label="YouTube 連結",
-                        placeholder="https://www.youtube.com/watch?v=...",
-                        lines=1
-                    )
-                
-                with gr.Row():
-                    video_upload = gr.Video(
-                        label="或上傳本地影片檔",
-                        sources=["upload"]
-                    )
-                
-                with gr.Row():
-                    video_source_lang = gr.Dropdown(
-                        choices=[("自動偵測", "auto")] + language_choices,
-                        value="auto",
-                        label="來源語言"
-                    )
-                    video_target_lang = gr.Dropdown(
-                        choices=language_choices,
-                        value="zh_TW",
-                        label="目標語言（可多選）",
-                        multiselect=True,
-                        max_choices=5,
-                        info="多選時會啟用批次處理"
-                    )
-                
-                with gr.Row():
-                    burn_subtitles_checkbox = gr.Checkbox(
-                        label="產生並燒錄字幕",
-                        value=True,
-                        info="啟用後會把字幕直接嵌入影片"
-                    )
-                
-                video_process_btn = gr.Button("開始處理", variant="primary")
-                
-                video_status = gr.Textbox(
-                    label="處理狀態",
-                    value="等待任務...",
-                    interactive=False,
-                    lines=8,
-                    max_lines=15
-                )
-                
-                with gr.Row():
-                    with gr.Column():
-                        gr.Markdown("#### 原始輸出")
-                        original_video_output = gr.Video(label="原始影片")
-                        original_srt_output = gr.File(label="原始字幕 (SRT)")
-                    
-                    with gr.Column():
-                        gr.Markdown("#### 配音結果")
-                        # 隤????詨嚗甈∟????嚗?
-                        preview_lang_selector = gr.Dropdown(
-                            choices=[],
-                            label="預覽語言",
-                            visible=False,
-                            interactive=True
+            # ============================================================
+            #  翻譯中心
+            # ============================================================
+            with gr.TabItem("翻譯中心"):
+              with gr.Tabs():
+                with gr.TabItem("文字翻譯"):
+                    with gr.Row():
+                        source_lang = gr.Dropdown(
+                            choices=language_choices,
+                            value="en_US",
+                            label="來源語言",
+                            scale=2
                         )
-                        dubbed_video_output = gr.Video(label="配音影片")
-                        translated_srt_output = gr.File(label="翻譯字幕 (SRT)")
-                
-                # ?冽?脣??寞活蝯??????
-                batch_results_state = gr.State(value=None)
-                
-                gr.Markdown("#### 批次輸出檔案")
-                batch_files_output = gr.File(
-                    label="批次輸出（可多檔下載）",
-                    file_count="multiple"
-                )
-                
-                def handle_video_process(url, uploaded, src_lang, tgt_langs, burn_subs, progress=gr.Progress()):
-                    # Uploaded local file should take precedence over URL input.
-                    uploaded_path = _normalize_uploaded_video(uploaded)
-                    source = uploaded_path if uploaded_path else (url.strip() if isinstance(url, str) else url)
-                    if not source:
-                        return (
-                            None,
-                            None,
-                            None,
-                            None,
-                            "Please provide a YouTube URL or upload a local video file.",
-                            None,
-                            gr.update(choices=[], visible=False, value=None),
-                            None,
-                        )
-                    result = process_video_translation(source, src_lang, tgt_langs, burn_subs, progress)
                     
-                    # process_video_translation ?曉餈? 6 ??
-                    batch_files = result[5] if len(result) > 5 else None
+                        swap_btn = gr.Button("交換", elem_classes="swap-btn", scale=0)
                     
-                    # ?斗?臬?箸甈∟???
-                    if isinstance(tgt_langs, list) and len(tgt_langs) > 1:
-                        # ?寞活璅∪?嚗??刻?閮?豢???
-                        lang_choices = tgt_langs
-                        lang_visible = True
-                        selected_lang = tgt_langs[0]
-                        
-                        # ?脣??寞活蝯?靘??蝙??
-                        # 敺?batch_files ?遣蝯???
-                        # 頝臬?蝯?: temp/batch_job_xxx/{lang}/dubbed_video.mp4
-                        batch_data = {}
-                        for f in (batch_files or []):
-                            if f and isinstance(f, str):
-                                # 璅??楝敺??泵
-                                f_normalized = f.replace('\\', '/')
-                                for lang in tgt_langs:
-                                    # 瑼Ｘ頝臬?銝剜?血??怨?閮鞈?憭?/{lang}/
-                                    if f'/{lang}/' in f_normalized:
-                                        if lang not in batch_data:
-                                            batch_data[lang] = {}
-                                        if f.endswith('.mp4'):
-                                            batch_data[lang]['video'] = f
-                                        elif f.endswith('.srt'):
-                                            batch_data[lang]['srt'] = f
-                    else:
-                        # ?桐?隤?璅∪?
-                        lang_choices = []
-                        lang_visible = False
-                        selected_lang = None
-                        batch_data = None
+                        target_lang = gr.Dropdown(
+                            choices=language_choices,
+                            value="zh_TW",
+                            label="目標語言",
+                            scale=2
+                        )
+                
+                    with gr.Row():
+                        input_text = gr.Textbox(
+                            label="輸入文字",
+                            placeholder="請輸入要翻譯的內容...",
+                            lines=8,
+                            scale=1
+                        )
                     
-                    return (
-                        result[0],  # original_video
-                        result[1],  # dubbed_video
-                        result[2],  # original_srt
-                        result[3],  # translated_srt
-                        result[4],  # status
-                        batch_files,  # batch_files
-                        gr.update(choices=lang_choices, visible=lang_visible, value=selected_lang),  # 語言選單
-                        batch_data  # ?寞活蝯????
-                    )
-                
-                def switch_preview_language(selected_lang, batch_data):
-                    """依語言切換預覽結果"""
-                    if not batch_data or not selected_lang:
-                        return None, None
-                    
-                    lang_data = batch_data.get(selected_lang, {})
-                    return lang_data.get('video'), lang_data.get('srt')
-                
-                video_process_btn.click(
-                    fn=handle_video_process,
-                    inputs=[video_url_input, video_upload, video_source_lang, video_target_lang, burn_subtitles_checkbox],
-                    outputs=[original_video_output, dubbed_video_output, original_srt_output, translated_srt_output, video_status, batch_files_output, preview_lang_selector, batch_results_state]
-                )
-                
-                # 隤???鈭辣
-                preview_lang_selector.change(
-                    fn=switch_preview_language,
-                    inputs=[preview_lang_selector, batch_results_state],
-                    outputs=[dubbed_video_output, translated_srt_output]
-                )
-                
-                gr.Markdown("""
-                > **Video Translation Tips**
-                > - Processing time depends on video duration and resolution.
-                > - A local `ffmpeg` installation is required.
-                > - Batch mode outputs one result set per target language.
-                > - Validate with a short 30-60 second clip before long videos.
-                """)
-            
-            # ========== ?降???? ==========
-            with gr.TabItem("會議摘要"):
-                gr.Markdown("### 上傳會議影片，自動產生逐字稿與摘要")
-                
-                with gr.Row():
-                    with gr.Column(scale=1):
-                        meeting_video_upload = gr.Video(
-                            label="上傳會議影片",
-                            sources=["upload"]
-                        )
-                        
-                        meeting_language = gr.Dropdown(
-                            choices=[("自動偵測", "auto")] + language_choices,
-                            value="auto",
-                            label="會議語言"
-                        )
-                        
-                        summary_type_selector = gr.CheckboxGroup(
-                            choices=[
-                                ("完整摘要", "full_summary"),
-                                ("重點整理", "key_points"),
-                                ("行動項目", "action_items"),
-                                ("決策事項", "decisions")
-                            ],
-                            value=["full_summary"],
-                            label="摘要輸出類型",
-                        )
-                        
-                        with gr.Accordion("AI 設定", open=False):
-                            ai_backend_selector = gr.Radio(
-                                choices=[
-                                    ("Ollama 本地模型", "ollama"),
-                                    ("Gemini API", "gemini")
-                                ],
-                                value="ollama",
-                                label="AI 後端"
-                            )
-                            
-                            ollama_model_selector = gr.Dropdown(
-                                choices=[
-                                    ("qwen3:4b (fast)", "qwen3:4b"),
-                                    ("ministral-3:8b (balanced)", "ministral-3:8b"),
-                                    ("qwen3-v1:8b (quality)", "qwen3-v1:8b")
-                                ],
-                                value="qwen3:4b",
-                                label="Ollama model",
-                                visible=True
-                            )
-                            
-                            gemini_api_key_input = gr.Textbox(
-                                label="Gemini API Key",
-                                type="password",
-                                placeholder="請輸入 Gemini API Key...",
-                                visible=False
-                            )
-                        
-                        meeting_process_btn = gr.Button("開始摘要", variant="primary", size="lg")
-                    
-                    with gr.Column(scale=2):
-                        meeting_status = gr.Textbox(
-                            label="處理狀態",
-                            value="等待影片上傳...",
-                            interactive=False,
-                            lines=2
-                        )
-                        
-                        meeting_progress = gr.Slider(
-                            minimum=0,
-                            maximum=100,
-                            value=0,
-                            label="處理進度",
+                        output_text = gr.Textbox(
+                            label="翻譯結果",
+                            lines=8,
+                            scale=1,
                             interactive=False
                         )
+                    with gr.Row():
+                        learning_mode_toggle = gr.Checkbox(
+                            label="學習模式",
+                            value=False,
+                            info="啟用後翻譯結果會附帶詞彙、文法解析與相似表達"
+                        )
+
+                    with gr.Accordion("進階翻譯設定（術語表 / 風格）", open=False):
+                        glossary_text = gr.Textbox(
+                            label="術語表（每行一條，格式: source => target）",
+                            placeholder="AI => 人工智慧\nLLM => 大型語言模型",
+                            lines=4
+                        )
+                        style_guide = gr.Textbox(
+                            label="翻譯風格指南",
+                            placeholder="例：正式、簡潔、保留專有名詞英文括註",
+                            lines=3
+                        )
+
+
+                    translate_btn = gr.Button("開始翻譯", variant="primary", size="lg")
+
+                    # 蝬?鈭辣
+                    translate_btn.click(
+                        fn=translate_text,
+                        inputs=[input_text, source_lang, target_lang, glossary_text, style_guide, learning_mode_toggle],
+                        outputs=output_text
+                    )
+
+                    swap_btn.click(
+                        fn=swap_languages,
+                        inputs=[source_lang, target_lang],
+                        outputs=[source_lang, target_lang]
+                    )
+
+                    # Enter ?萇蕃霅?
+                    input_text.submit(
+                        fn=translate_text,
+                        inputs=[input_text, source_lang, target_lang, glossary_text, style_guide, learning_mode_toggle],
+                        outputs=output_text
+                    )
+                with gr.TabItem("圖片翻譯"):
+                    gr.Markdown("### 上傳圖片後，使用 Tesseract OCR 進行辨識與翻譯")
+                
+                    with gr.Row():
+                        image_input = gr.Image(
+                            label="上傳圖片",
+                            type="filepath",
+                            scale=1
+                        )
+                    
+                        image_output = gr.Textbox(
+                            label="辨識與翻譯結果",
+                            lines=12,
+                            scale=1,
+                            interactive=False
+                        )
+                
+                    with gr.Row():
+                        image_source_lang = gr.Dropdown(
+                            choices=[("自動偵測", "auto")] + language_choices,
+                            value="auto",
+                            label="來源語言"
+                        )
+                    
+                        image_target_lang = gr.Dropdown(
+                            choices=language_choices,
+                            value="zh_TW",
+                            label="目標語言"
+                        )
+                    
+                        image_translate_btn = gr.Button("OCR 並翻譯", variant="primary")
+                
+                    image_translate_btn.click(
+                        fn=translate_image,
+                        inputs=[image_input, image_source_lang, image_target_lang],
+                        outputs=image_output
+                    )
+                with gr.TabItem("PDF 翻譯"):
+                    gr.Markdown("### 上傳 PDF 文件後，可逐頁翻譯內容")
+                
+                    with gr.Row():
+                        pdf_input = gr.File(
+                            label="上傳 PDF",
+                            file_types=[".pdf"],
+                            type="filepath",
+                            scale=1
+                        )
+                    
+                        pdf_output = gr.Textbox(
+                            label="翻譯結果",
+                            lines=15,
+                            scale=2,
+                            interactive=False
+                        )
+                
+                    with gr.Row():
+                        pdf_source_lang = gr.Dropdown(
+                            choices=language_choices,
+                            value="en_US",
+                            label="PDF 來源語言"
+                        )
+                    
+                        pdf_target_lang = gr.Dropdown(
+                            choices=language_choices,
+                            value="zh_TW",
+                            label="目標語言"
+                        )
+                    
+                        pdf_translate_btn = gr.Button("翻譯 PDF", variant="primary")
+                
+                    pdf_translate_btn.click(
+                        fn=translate_pdf,
+                        inputs=[pdf_input, pdf_source_lang, pdf_target_lang],
+                        outputs=pdf_output
+                    )
+                
+                    gr.Markdown("""
+                    > **提示：**
+                    > - PDF 翻譯採逐頁處理，文件越大耗時越長。
+                    > - 建議先測試 1-2 頁，確認品質後再翻完整文件。
+                    > - 若為掃描 PDF，先確保 OCR 可讀性。
+                    """)
+                with gr.TabItem("語音翻譯"):
+                    gr.Markdown("### 錄音或上傳音檔，系統會先辨識再翻譯")
+                
+                    with gr.Row():
+                        voice_source_lang = gr.Dropdown(
+                            choices=[("自動偵測", "auto")] + language_choices,
+                            value="auto",
+                            label="來源語言"
+                        )
+                    
+                        voice_target_lang = gr.Dropdown(
+                            choices=language_choices,
+                            value="zh_TW",
+                            label="目標語言"
+                        )
+                
+                    with gr.Row():
+                        audio_input = gr.Audio(
+                            sources=["microphone", "upload"],
+                            type="filepath",
+                            label="語音輸入（錄音或上傳）"
+                        )
+                    
+                        audio_output = gr.Audio(
+                            label="語音輸出（TTS）",
+                            type="filepath",
+                            interactive=False
+                        )
+                
+                    with gr.Row():
+                        recognized_text = gr.Textbox(
+                            label="語音辨識文字",
+                            lines=3,
+                            interactive=False
+                        )
+                    
+                        translated_text = gr.Textbox(
+                            label="翻譯文字",
+                            lines=3,
+                            interactive=False
+                        )
+                
+                    voice_translate_btn = gr.Button("語音翻譯", variant="primary", size="lg")
+                
+                    voice_translate_btn.click(
+                        fn=translate_voice,
+                        inputs=[audio_input, voice_source_lang, voice_target_lang],
+                        outputs=[recognized_text, translated_text, audio_output]
+                    )
+                
+                    gr.Markdown("""
+                    > **提示：**
+                    > - 建議音檔小於 150MB。
+                    > - TTS 使用 Edge 語音服務。
+                    > - 支援常見 wav/mp3。
+                    """)
+                with gr.TabItem("即時語音翻譯"):
+                    gr.Markdown("### 即時語音翻譯 - 邊說邊翻")
+                
+                    with gr.Row():
+                        stream_source_lang = gr.Dropdown(
+                            choices=[("自動偵測", "auto")] + language_choices,
+                            value="en_US",
+                            label="來源語言"
+                        )
+                    
+                        stream_target_lang = gr.Dropdown(
+                            choices=language_choices,
+                            value="zh_TW",
+                            label="目標語言"
+                        )
+                
+                    with gr.Row():
+                        silence_threshold_slider = gr.Slider(
+                            minimum=0.01,
+                            maximum=0.10,
+                            value=0.02,
+                            step=0.005,
+                            label="靜音判定閾值（越高越容易判定為靜音）",
+                            info="可依環境噪音調整"
+                        )
+                
+                    stream_status = gr.Textbox(
+                        label="即時狀態",
+                        value="等待音訊輸入...",
+                        interactive=False
+                    )
+                
+                    stream_audio = gr.Audio(
+                        sources=["microphone"],
+                        streaming=True,
+                        type="numpy",
+                        label="即時語音輸入（麥克風）"
+                    )
+                
+                    with gr.Row():
+                        stream_transcript = gr.Textbox(
+                            label="即時辨識文字",
+                            lines=6,
+                            interactive=False
+                        )
+                    
+                        stream_translation = gr.Textbox(
+                            label="即時翻譯文字",
+                            lines=6,
+                            interactive=False
+                        )
+                
+                    stream_tts_output = gr.Audio(
+                        label="即時翻譯語音輸出",
+                        type="filepath",
+                        autoplay=True,
+                        interactive=False
+                    )
+                
+                    reset_btn = gr.Button("重設", variant="secondary")
+                
+                    # 銝脫???
+                    stream_audio.stream(
+                        fn=process_stream_chunk,
+                        inputs=[stream_audio, stream_source_lang, stream_target_lang, silence_threshold_slider],
+                        outputs=[stream_transcript, stream_translation, stream_status, stream_tts_output]
+                    )
+                
+                    reset_btn.click(
+                        fn=reset_stream_state,
+                        outputs=[stream_transcript, stream_translation, stream_status, stream_tts_output]
+                    )
+                
+                    gr.Markdown("""
+                    > **使用建議：**
+                    > - 每段 2-3 秒語音有最佳效果。
+                    > - 背景噪音過高時，請提高靜音閾值。
+                    > - 網路或模型忙碌時可能延遲。
+                    """)
+                with gr.TabItem("影片翻譯"):
+                    gr.Markdown("### 影片翻譯與配音 - 支援多語目標")
+                
+                    with gr.Row():
+                        video_url_input = gr.Textbox(
+                            label="YouTube 連結",
+                            placeholder="https://www.youtube.com/watch?v=...",
+                            lines=1
+                        )
+                
+                    with gr.Row():
+                        video_upload = gr.Video(
+                            label="或上傳本地影片檔",
+                            sources=["upload"]
+                        )
+                
+                    with gr.Row():
+                        video_source_lang = gr.Dropdown(
+                            choices=[("自動偵測", "auto")] + language_choices,
+                            value="auto",
+                            label="來源語言"
+                        )
+                        video_target_lang = gr.Dropdown(
+                            choices=language_choices,
+                            value="zh_TW",
+                            label="目標語言（可多選）",
+                            multiselect=True,
+                            max_choices=5,
+                            info="多選時會啟用批次處理"
+                        )
+                
+                    with gr.Row():
+                        burn_subtitles_checkbox = gr.Checkbox(
+                            label="產生並燒錄字幕",
+                            value=True,
+                            info="啟用後會把字幕直接嵌入影片"
+                        )
+                
+                    video_process_btn = gr.Button("開始處理", variant="primary")
+                
+                    video_status = gr.Textbox(
+                        label="處理狀態",
+                        value="等待任務...",
+                        interactive=False,
+                        lines=8,
+                        max_lines=15
+                    )
+                
+                    with gr.Row():
+                        with gr.Column():
+                            gr.Markdown("#### 原始輸出")
+                            original_video_output = gr.Video(label="原始影片")
+                            original_srt_output = gr.File(label="原始字幕 (SRT)")
+                    
+                        with gr.Column():
+                            gr.Markdown("#### 配音結果")
+                            # 隤????詨嚗甈∟????嚗?
+                            preview_lang_selector = gr.Dropdown(
+                                choices=[],
+                                label="預覽語言",
+                                visible=False,
+                                interactive=True
+                            )
+                            dubbed_video_output = gr.Video(label="配音影片")
+                            translated_srt_output = gr.File(label="翻譯字幕 (SRT)")
+                
+                    # ?冽?脣??寞活蝯??????
+                    batch_results_state = gr.State(value=None)
+                
+                    gr.Markdown("#### 批次輸出檔案")
+                    batch_files_output = gr.File(
+                        label="批次輸出（可多檔下載）",
+                        file_count="multiple"
+                    )
+                
+                    def handle_video_process(url, uploaded, src_lang, tgt_langs, burn_subs, progress=gr.Progress()):
+                        # Uploaded local file should take precedence over URL input.
+                        uploaded_path = _normalize_uploaded_video(uploaded)
+                        source = uploaded_path if uploaded_path else (url.strip() if isinstance(url, str) else url)
+                        if not source:
+                            return (
+                                None,
+                                None,
+                                None,
+                                None,
+                                "Please provide a YouTube URL or upload a local video file.",
+                                None,
+                                gr.update(choices=[], visible=False, value=None),
+                                None,
+                            )
+                        result = process_video_translation(source, src_lang, tgt_langs, burn_subs, progress)
+                    
+                        # process_video_translation ?曉餈? 6 ??
+                        batch_files = result[5] if len(result) > 5 else None
+                    
+                        # ?斗?臬?箸甈∟???
+                        if isinstance(tgt_langs, list) and len(tgt_langs) > 1:
+                            # ?寞活璅∪?嚗??刻?閮?豢???
+                            lang_choices = tgt_langs
+                            lang_visible = True
+                            selected_lang = tgt_langs[0]
                         
-                        with gr.Tabs():
-                            with gr.TabItem("逐字稿"):
-                                transcript_output = gr.Textbox(
-                                    label="逐字稿（可下載）",
-                                    lines=15,
-                                    interactive=False
+                            # ?脣??寞活蝯?靘??蝙??
+                            # 敺?batch_files ?遣蝯???
+                            # 頝臬?蝯?: temp/batch_job_xxx/{lang}/dubbed_video.mp4
+                            batch_data = {}
+                            for f in (batch_files or []):
+                                if f and isinstance(f, str):
+                                    # 璅??楝敺??泵
+                                    f_normalized = f.replace('\\', '/')
+                                    for lang in tgt_langs:
+                                        # 瑼Ｘ頝臬?銝剜?血??怨?閮鞈?憭?/{lang}/
+                                        if f'/{lang}/' in f_normalized:
+                                            if lang not in batch_data:
+                                                batch_data[lang] = {}
+                                            if f.endswith('.mp4'):
+                                                batch_data[lang]['video'] = f
+                                            elif f.endswith('.srt'):
+                                                batch_data[lang]['srt'] = f
+                        else:
+                            # ?桐?隤?璅∪?
+                            lang_choices = []
+                            lang_visible = False
+                            selected_lang = None
+                            batch_data = None
+                    
+                        return (
+                            result[0],  # original_video
+                            result[1],  # dubbed_video
+                            result[2],  # original_srt
+                            result[3],  # translated_srt
+                            result[4],  # status
+                            batch_files,  # batch_files
+                            gr.update(choices=lang_choices, visible=lang_visible, value=selected_lang),  # 語言選單
+                            batch_data  # ?寞活蝯????
+                        )
+                
+                    def switch_preview_language(selected_lang, batch_data):
+                        """依語言切換預覽結果"""
+                        if not batch_data or not selected_lang:
+                            return None, None
+                    
+                        lang_data = batch_data.get(selected_lang, {})
+                        return lang_data.get('video'), lang_data.get('srt')
+                
+                    video_process_btn.click(
+                        fn=handle_video_process,
+                        inputs=[video_url_input, video_upload, video_source_lang, video_target_lang, burn_subtitles_checkbox],
+                        outputs=[original_video_output, dubbed_video_output, original_srt_output, translated_srt_output, video_status, batch_files_output, preview_lang_selector, batch_results_state]
+                    )
+                
+                    # 隤???鈭辣
+                    preview_lang_selector.change(
+                        fn=switch_preview_language,
+                        inputs=[preview_lang_selector, batch_results_state],
+                        outputs=[dubbed_video_output, translated_srt_output]
+                    )
+                
+                    gr.Markdown("""
+                    > **Video Translation Tips**
+                    > - Processing time depends on video duration and resolution.
+                    > - A local `ffmpeg` installation is required.
+                    > - Batch mode outputs one result set per target language.
+                    > - Validate with a short 30-60 second clip before long videos.
+                    """)
+
+            # ============================================================
+            #  學習中心
+            # ============================================================
+            with gr.TabItem("學習中心"):
+              gr.Markdown("### 互動式語言學習工具")
+
+              with gr.Tabs():
+                  # --- 閃卡 ---
+                  with gr.TabItem("單字閃卡"):
+                      gr.Markdown("輸入一段文字，自動萃取重點詞彙並生成閃卡。")
+                      with gr.Row():
+                          flash_source_lang = gr.Dropdown(
+                              choices=[("自動偵測", "auto")] + language_choices,
+                              value="en_US",
+                              label="來源語言"
+                          )
+                          flash_target_lang = gr.Dropdown(
+                              choices=language_choices,
+                              value="zh_TW",
+                              label="母語（解釋語言）"
+                          )
+                          flash_count = gr.Slider(
+                              minimum=3, maximum=10, value=5, step=1,
+                              label="閃卡數量"
+                          )
+
+                      flash_input = gr.Textbox(
+                          label="輸入文字素材",
+                          placeholder="貼上一段英文文章、新聞、或任何學習素材...",
+                          lines=5
+                      )
+                      flash_btn = gr.Button("生成閃卡", variant="primary")
+                      flash_output = gr.Markdown(label="閃卡結果")
+
+                      flash_btn.click(
+                          fn=lambda text, src, tgt, cnt: next_or_default(
+                              translator.generate_flashcards(text, src, tgt, int(cnt)),
+                              "請輸入文字素材。"
+                          ),
+                          inputs=[flash_input, flash_source_lang, flash_target_lang, flash_count],
+                          outputs=flash_output
+                      )
+
+                  # --- 聽寫測驗 ---
+                  with gr.TabItem("聽寫測驗"):
+                      gr.Markdown("系統會朗讀一段文字，你來聽寫，然後檢查正確率。")
+                      with gr.Row():
+                          dictation_lang = gr.Dropdown(
+                              choices=language_choices,
+                              value="en_US",
+                              label="練習語言"
+                          )
+                          dictation_target_lang = gr.Dropdown(
+                              choices=language_choices,
+                              value="zh_TW",
+                              label="回饋語言"
+                          )
+
+                      dictation_text = gr.Textbox(
+                          label="原文（系統會朗讀此內容）",
+                          placeholder="輸入或貼上要練習聽寫的句子...",
+                          lines=3
+                      )
+                      dictation_play_btn = gr.Button("播放語音", variant="secondary")
+                      dictation_audio = gr.Audio(
+                          label="語音播放",
+                          type="filepath",
+                          interactive=False
+                      )
+
+                      dictation_user_input = gr.Textbox(
+                          label="你的聽寫內容",
+                          placeholder="聽完後在這裡輸入你聽到的內容...",
+                          lines=3
+                      )
+                      dictation_check_btn = gr.Button("檢查結果", variant="primary")
+                      dictation_result = gr.Markdown(label="聽寫回饋")
+
+                      def play_dictation_audio(text, lang):
+                          if not text.strip():
+                              return None
+                          try:
+                              loop = asyncio.new_event_loop()
+                              asyncio.set_event_loop(loop)
+                              path = loop.run_until_complete(translator.text_to_speech(text, lang))
+                              loop.close()
+                              return path
+                          except Exception:
+                              return None
+
+                      dictation_play_btn.click(
+                          fn=play_dictation_audio,
+                          inputs=[dictation_text, dictation_lang],
+                          outputs=dictation_audio
+                      )
+
+                      dictation_check_btn.click(
+                          fn=lambda orig, user_in, tgt: translator.dictation_check(orig, user_in, tgt),
+                          inputs=[dictation_text, dictation_user_input, dictation_target_lang],
+                          outputs=dictation_result
+                      )
+
+                  # --- 發音練習 ---
+                  with gr.TabItem("發音練習"):
+                      gr.Markdown("先聽範讀，再錄音跟讀，系統會比對你的發音。")
+                      with gr.Row():
+                          pronun_lang = gr.Dropdown(
+                              choices=language_choices,
+                              value="en_US",
+                              label="練習語言"
+                          )
+                          pronun_feedback_lang = gr.Dropdown(
+                              choices=language_choices,
+                              value="zh_TW",
+                              label="回饋語言"
+                          )
+
+                      pronun_text = gr.Textbox(
+                          label="練習句子",
+                          placeholder="輸入要練習的句子...",
+                          lines=2
+                      )
+
+                      with gr.Row():
+                          pronun_play_btn = gr.Button("播放範讀", variant="secondary")
+                          pronun_ref_audio = gr.Audio(
+                              label="範讀語音",
+                              type="filepath",
+                              interactive=False
+                          )
+
+                      with gr.Row():
+                          pronun_user_audio = gr.Audio(
+                              sources=["microphone"],
+                              type="filepath",
+                              label="錄下你的發音"
+                          )
+
+                      pronun_check_btn = gr.Button("比對發音", variant="primary")
+                      pronun_result = gr.Markdown(label="發音回饋")
+
+                      pronun_play_btn.click(
+                          fn=play_dictation_audio,
+                          inputs=[pronun_text, pronun_lang],
+                          outputs=pronun_ref_audio
+                      )
+
+                      def check_pronunciation(ref_text, user_audio, practice_lang, feedback_lang):
+                          if not ref_text.strip():
+                              return "請先輸入練習句子。"
+                          if user_audio is None:
+                              return "請先錄音。"
+                          recognized, _ = translator.speech_to_text(user_audio, practice_lang)
+                          if not recognized or recognized.startswith("未安裝") or recognized.startswith("語音辨識失敗"):
+                              return f"語音辨識失敗：{recognized}"
+                          return translator.dictation_check(ref_text, recognized, feedback_lang)
+
+                      pronun_check_btn.click(
+                          fn=check_pronunciation,
+                          inputs=[pronun_text, pronun_user_audio, pronun_lang, pronun_feedback_lang],
+                          outputs=pronun_result
+                      )
+
+                  # --- 情境對話 ---
+                  with gr.TabItem("情境對話"):
+                      gr.Markdown("選擇一個場景，與 AI 進行目標語言對話練習。")
+                      with gr.Row():
+                          conv_practice_lang = gr.Dropdown(
+                              choices=language_choices,
+                              value="en_US",
+                              label="練習語言"
+                          )
+                          conv_native_lang = gr.Dropdown(
+                              choices=language_choices,
+                              value="zh_TW",
+                              label="母語（回饋語言）"
+                          )
+                      conv_scenario = gr.Dropdown(
+                          choices=[
+                              ("餐廳點餐", "You are a waiter at a restaurant. The student is a customer ordering food."),
+                              ("飯店入住", "You are a hotel receptionist. The student is checking in."),
+                              ("求職面試", "You are an interviewer at a tech company. The student is the candidate."),
+                              ("問路", "You are a local resident. The student is a tourist asking for directions."),
+                              ("看醫生", "You are a doctor. The student is a patient describing symptoms."),
+                              ("購物", "You are a shop assistant. The student is looking to buy clothes."),
+                          ],
+                          value="You are a waiter at a restaurant. The student is a customer ordering food.",
+                          label="對話場景"
+                      )
+                      conv_history_state = gr.State(value="")
+                      conv_user_input = gr.Textbox(
+                          label="你的回覆",
+                          placeholder="用目標語言輸入你的對話...",
+                          lines=2
+                      )
+                      conv_send_btn = gr.Button("發送", variant="primary")
+                      conv_output = gr.Markdown(label="對話紀錄", value="*選擇場景後開始對話*")
+                      conv_reset_btn = gr.Button("重新開始對話", variant="secondary", size="sm")
+
+                      def handle_conversation(scenario, user_msg, practice_lang, native_lang, history):
+                          if not user_msg.strip():
+                              return history, "*請輸入對話內容*", ""
+                          new_history = history + f"\nStudent: {user_msg}" if history else f"Student: {user_msg}"
+                          reply = next_or_default(
+                              translator.conversation_practice(
+                                  scenario, user_msg, practice_lang, native_lang, history
+                              ),
+                              "對話生成失敗"
+                          )
+                          new_history += f"\nAI: {reply.split('---')[0].strip()}" if '---' in reply else f"\nAI: {reply}"
+                          return new_history, reply, ""
+
+                      conv_send_btn.click(
+                          fn=handle_conversation,
+                          inputs=[conv_scenario, conv_user_input, conv_practice_lang, conv_native_lang, conv_history_state],
+                          outputs=[conv_history_state, conv_output, conv_user_input]
+                      )
+                      conv_reset_btn.click(
+                          fn=lambda: ("", "*對話已重置，請開始新對話*", ""),
+                          outputs=[conv_history_state, conv_output, conv_user_input]
+                      )
+
+                  # --- 寫作批改 ---
+                  with gr.TabItem("寫作批改"):
+                      gr.Markdown("用目標語言寫一段文字，AI 會批改文法、評分並給出建議。")
+                      with gr.Row():
+                          writing_lang = gr.Dropdown(
+                              choices=language_choices,
+                              value="en_US",
+                              label="寫作語言"
+                          )
+                          writing_native_lang = gr.Dropdown(
+                              choices=language_choices,
+                              value="zh_TW",
+                              label="母語（回饋語言）"
+                          )
+                      writing_input = gr.Textbox(
+                          label="你的寫作",
+                          placeholder="用目標語言寫一段文字...",
+                          lines=8
+                      )
+                      writing_btn = gr.Button("批改", variant="primary")
+                      writing_output = gr.Markdown(label="批改結果")
+
+                      writing_btn.click(
+                          fn=lambda text, lang, native: next_or_default(
+                              translator.writing_correction(text, lang, native),
+                              "請輸入寫作內容。"
+                          ),
+                          inputs=[writing_input, writing_lang, writing_native_lang],
+                          outputs=writing_output
+                      )
+
+                  # --- 詞彙庫 ---
+                  with gr.TabItem("詞彙庫"):
+                      gr.Markdown("管理你的個人詞彙庫，支援 Spaced Repetition 複習排程。")
+
+                      with gr.Row():
+                          vocab_add_word = gr.Textbox(label="單字/片語", placeholder="e.g. postpone", scale=2)
+                          vocab_add_meaning = gr.Textbox(label="釋義", placeholder="e.g. 延期", scale=2)
+                          vocab_add_pos = gr.Textbox(label="詞性", placeholder="e.g. v.", scale=1)
+                      with gr.Row():
+                          vocab_add_example = gr.Textbox(label="例句", placeholder="The meeting was postponed.", scale=3)
+                          vocab_add_src = gr.Dropdown(choices=language_choices, value="en_US", label="語言", scale=1)
+                          vocab_add_tgt = gr.Dropdown(choices=language_choices, value="zh_TW", label="母語", scale=1)
+                      vocab_add_btn = gr.Button("加入詞彙庫", variant="primary", size="sm")
+                      vocab_add_status = gr.Textbox(label="", interactive=False, visible=True, max_lines=1)
+
+                      def add_vocab(word, meaning, pos, example, src, tgt):
+                          if not word.strip() or not meaning.strip():
+                              return "請輸入單字與釋義。"
+                          from learning import learning_manager
+                          learning_manager.add_vocabulary(
+                              word=word.strip(), meaning=meaning.strip(),
+                              source_lang=src, target_lang=tgt,
+                              part_of_speech=pos.strip(),
+                              example_sentence=example.strip()
+                          )
+                          return f"已加入：{word}"
+
+                      vocab_add_btn.click(
+                          fn=add_vocab,
+                          inputs=[vocab_add_word, vocab_add_meaning, vocab_add_pos, vocab_add_example, vocab_add_src, vocab_add_tgt],
+                          outputs=vocab_add_status
+                      )
+
+                      gr.Markdown("#### 待複習詞彙")
+                      vocab_review_btn = gr.Button("載入待複習", variant="secondary", size="sm")
+                      vocab_table = gr.Dataframe(
+                          headers=["ID", "單字", "詞性", "釋義", "下次複習", "重複次數"],
+                          datatype=["number", "str", "str", "str", "str", "number"],
+                          interactive=False
+                      )
+
+                      def load_due_vocab():
+                          from learning import learning_manager
+                          cards = learning_manager.get_due_cards(limit=20)
+                          data = []
+                          for c in cards:
+                              data.append([
+                                  c["id"], c["word"], c["part_of_speech"],
+                                  c["meaning"], c["next_review"][:10], c["repetitions"]
+                              ])
+                          return data
+
+                      vocab_review_btn.click(fn=load_due_vocab, outputs=vocab_table)
+
+                      with gr.Row():
+                          review_card_id = gr.Number(label="Card ID", precision=0)
+                          review_quality = gr.Slider(minimum=0, maximum=5, value=4, step=1,
+                                                     label="回憶品質 (0=完全忘記, 5=完美記住)")
+                          review_submit_btn = gr.Button("提交複習", variant="primary", size="sm")
+                      review_result = gr.Textbox(label="複習結果", interactive=False, max_lines=2)
+
+                      def submit_review(card_id, quality):
+                          from learning import learning_manager
+                          result = learning_manager.review_card(int(card_id), int(quality))
+                          if "error" in result:
+                              return result["error"]
+                          return f"下次複習：{result['next_review'][:10]}（間隔 {result['new_interval_days']} 天）"
+
+                      review_submit_btn.click(
+                          fn=submit_review,
+                          inputs=[review_card_id, review_quality],
+                          outputs=review_result
+                      )
+
+                  # --- 學習儀表板 ---
+                  with gr.TabItem("學習統計"):
+                      gr.Markdown("### 你的學習進度總覽")
+                      learn_dashboard_refresh = gr.Button("更新統計", variant="secondary", size="sm")
+
+                      with gr.Row():
+                          learn_kpi_words = gr.Markdown(elem_classes="kpi-card")
+                          learn_kpi_due = gr.Markdown(elem_classes="kpi-card")
+                          learn_kpi_mastered = gr.Markdown(elem_classes="kpi-card")
+                          learn_kpi_sessions = gr.Markdown(elem_classes="kpi-card")
+
+                      learn_weekly = gr.Markdown()
+
+                      def get_learning_dashboard():
+                          from learning import learning_manager
+                          stats = learning_manager.get_stats()
+                          kpi_w = f"### {stats['total_words']}\n總詞彙量"
+                          kpi_d = f"### {stats['due_for_review']}\n待複習"
+                          kpi_m = f"### {stats['mastered']}\n已掌握"
+                          kpi_s = f"### {stats['total_sessions']}\n學習次數"
+                          weekly_lines = ["#### 近 7 天學習活動"]
+                          if stats["weekly_activity"]:
+                              for day, cnt in sorted(stats["weekly_activity"].items()):
+                                  bar = "█" * min(cnt, 30)
+                                  weekly_lines.append(f"- {day}: {bar} ({cnt})")
+                          else:
+                              weekly_lines.append("*尚無紀錄*")
+                          if stats["session_breakdown"]:
+                              weekly_lines.append("\n#### 各類型練習統計")
+                              type_labels = {
+                                  "flashcard": "閃卡", "dictation": "聽寫",
+                                  "pronunciation": "發音", "conversation": "對話",
+                                  "writing": "寫作",
+                              }
+                              for stype, info in stats["session_breakdown"].items():
+                                  label = type_labels.get(stype, stype)
+                                  weekly_lines.append(f"- {label}: {info['count']} 次，平均 {info['avg_score']} 分")
+                          return kpi_w, kpi_d, kpi_m, kpi_s, "\n".join(weekly_lines)
+
+                      learn_dashboard_refresh.click(
+                          fn=get_learning_dashboard,
+                          outputs=[learn_kpi_words, learn_kpi_due, learn_kpi_mastered, learn_kpi_sessions, learn_weekly]
+                      )
+
+              gr.Markdown("""
+              > **學習小提示：**
+              > - 閃卡功能適合用於新聞、文章、技術文件的詞彙學習
+              > - 聽寫測驗可鍛鍊聽力與拼寫能力
+              > - 發音練習透過語音辨識比對，幫助矯正發音
+              > - 情境對話讓你在實際場景中練習口說
+              > - 寫作批改幫助提升書面表達能力
+              > - 詞彙庫使用 Spaced Repetition 自動安排複習時間
+              """)
+
+            # ============================================================
+            #  工具箱
+            # ============================================================
+            with gr.TabItem("工具箱"):
+              with gr.Tabs():
+                with gr.TabItem("會議摘要"):
+                    gr.Markdown("### 上傳會議影片，自動產生逐字稿與摘要")
+                
+                    with gr.Row():
+                        with gr.Column(scale=1):
+                            meeting_video_upload = gr.Video(
+                                label="上傳會議影片",
+                                sources=["upload"]
+                            )
+                        
+                            meeting_language = gr.Dropdown(
+                                choices=[("自動偵測", "auto")] + language_choices,
+                                value="auto",
+                                label="會議語言"
+                            )
+                        
+                            summary_type_selector = gr.CheckboxGroup(
+                                choices=[
+                                    ("完整摘要", "full_summary"),
+                                    ("重點整理", "key_points"),
+                                    ("行動項目", "action_items"),
+                                    ("決策事項", "decisions")
+                                ],
+                                value=["full_summary"],
+                                label="摘要輸出類型",
+                            )
+                        
+                            with gr.Accordion("AI 設定", open=False):
+                                ai_backend_selector = gr.Radio(
+                                    choices=[
+                                        ("Ollama 本地模型", "ollama"),
+                                        ("Gemini API", "gemini")
+                                    ],
+                                    value="ollama",
+                                    label="AI 後端"
                                 )
                             
-                            with gr.TabItem("摘要結果"):
-                                summary_output = gr.Markdown(
-                                    value="*尚無摘要內容*"
+                                ollama_model_selector = gr.Dropdown(
+                                    choices=[
+                                        ("qwen3:4b (fast)", "qwen3:4b"),
+                                        ("ministral-3:8b (balanced)", "ministral-3:8b"),
+                                        ("qwen3-v1:8b (quality)", "qwen3-v1:8b")
+                                    ],
+                                    value="qwen3:4b",
+                                    label="Ollama model",
+                                    visible=True
+                                )
+                            
+                                gemini_api_key_input = gr.Textbox(
+                                    label="Gemini API Key",
+                                    type="password",
+                                    placeholder="請輸入 Gemini API Key...",
+                                    visible=False
                                 )
                         
-                        with gr.Row():
-                            download_transcript_btn = gr.Button("下載逐字稿", size="sm")
-                            download_summary_btn = gr.Button("下載摘要", size="sm")
+                            meeting_process_btn = gr.Button("開始摘要", variant="primary", size="lg")
+                    
+                        with gr.Column(scale=2):
+                            meeting_status = gr.Textbox(
+                                label="處理狀態",
+                                value="等待影片上傳...",
+                                interactive=False,
+                                lines=2
+                            )
                         
-                        transcript_file = gr.File(label="逐字稿檔案", visible=False)
-                        summary_file = gr.File(label="摘要檔案", visible=False)
+                            meeting_progress = gr.Slider(
+                                minimum=0,
+                                maximum=100,
+                                value=0,
+                                label="處理進度",
+                                interactive=False
+                            )
+                        
+                            with gr.Tabs():
+                                with gr.TabItem("逐字稿"):
+                                    transcript_output = gr.Textbox(
+                                        label="逐字稿（可下載）",
+                                        lines=15,
+                                        interactive=False
+                                    )
+                            
+                                with gr.TabItem("摘要結果"):
+                                    summary_output = gr.Markdown(
+                                        value="*尚無摘要內容*"
+                                    )
+                        
+                            with gr.Row():
+                                download_transcript_btn = gr.Button("下載逐字稿", size="sm")
+                                download_summary_btn = gr.Button("下載摘要", size="sm")
+                        
+                            transcript_file = gr.File(label="逐字稿檔案", visible=False)
+                            summary_file = gr.File(label="摘要檔案", visible=False)
                 
-                # AI 敺垢??鈭辣
-                def toggle_ai_settings(backend):
-                    return (
-                        gr.update(visible=(backend == "ollama")),
-                        gr.update(visible=(backend == "gemini"))
+                    # AI 敺垢??鈭辣
+                    def toggle_ai_settings(backend):
+                        return (
+                            gr.update(visible=(backend == "ollama")),
+                            gr.update(visible=(backend == "gemini"))
+                        )
+                
+                    ai_backend_selector.change(
+                        fn=toggle_ai_settings,
+                        inputs=[ai_backend_selector],
+                        outputs=[ollama_model_selector, gemini_api_key_input]
                     )
                 
-                ai_backend_selector.change(
-                    fn=toggle_ai_settings,
-                    inputs=[ai_backend_selector],
-                    outputs=[ollama_model_selector, gemini_api_key_input]
-                )
-                
-                # ?降?????賣
-                def process_meeting_summary(video, language, summary_types, 
-                                            ai_backend, ollama_model, gemini_key,
-                                            progress=gr.Progress()):
-                    if video is None:
-                        return "請先上傳會議影片", 0, "", "*請先上傳會議影片*"
+                    # ?降?????賣
+                    def process_meeting_summary(video, language, summary_types, 
+                                                ai_backend, ollama_model, gemini_key,
+                                                progress=gr.Progress()):
+                        if video is None:
+                            return "請先上傳會議影片", 0, "", "*請先上傳會議影片*"
                     
-                    if not summary_types:
-                        summary_types = ["full_summary"]
+                        if not summary_types:
+                            summary_types = ["full_summary"]
                     
-                    # 撱箇?????
-                    summarizer = MeetingSummarizer(
-                        ai_backend=ai_backend,
-                        ollama_model=ollama_model,
-                        gemini_api_key=gemini_key
-                    )
+                        # 撱箇?????
+                        summarizer = MeetingSummarizer(
+                            ai_backend=ai_backend,
+                            ollama_model=ollama_model,
+                            gemini_api_key=gemini_key
+                        )
                     
-                    # ???脣漲餈質馱
-                    status_messages = []
-                    current_progress = 0
-                    transcript_text = ""
-                    summary_md = ""
+                        # ???脣漲餈質馱
+                        status_messages = []
+                        current_progress = 0
+                        transcript_text = ""
+                        summary_md = ""
                     
-                    try:
-                        for update in summarizer.process_video_stream(
-                            video, language, summary_types
-                        ):
-                            stage = update.get("stage", "")
-                            prog = update.get("progress", 0) * 100
-                            msg = update.get("message", "")
+                        try:
+                            for update in summarizer.process_video_stream(
+                                video, language, summary_types
+                            ):
+                                stage = update.get("stage", "")
+                                prog = update.get("progress", 0) * 100
+                                msg = update.get("message", "")
                             
-                            status_messages.append(msg)
-                            current_progress = prog
+                                status_messages.append(msg)
+                                current_progress = prog
                             
-                            # ?湔 Gradio ?脣漲
-                            progress(prog / 100, desc=msg)
+                                # ?湔 Gradio ?脣漲
+                                progress(prog / 100, desc=msg)
                             
-                            # ????蝔?
-                            if "transcript_with_time" in update:
-                                transcript_text = update["transcript_with_time"]
+                                # ????蝔?
+                                if "transcript_with_time" in update:
+                                    transcript_text = update["transcript_with_time"]
                             
-                            # ???典???
-                            if "partial_summary" in update:
-                                for stype, content in update["partial_summary"].items():
-                                    type_name = SUMMARY_TYPES.get(stype, {}).get("name", stype)
-                                    summary_md += f"\n\n## {type_name}\n\n{content}"
+                                # ???典???
+                                if "partial_summary" in update:
+                                    for stype, content in update["partial_summary"].items():
+                                        type_name = SUMMARY_TYPES.get(stype, {}).get("name", stype)
+                                        summary_md += f"\n\n## {type_name}\n\n{content}"
                             
-                            # ?蝯?閬?
-                            if stage == "done" and "summary" in update:
-                                summary_md = ""
-                                for stype, content in update["summary"].items():
-                                    type_name = SUMMARY_TYPES.get(stype, {}).get("name", stype)
-                                    summary_md += f"## {type_name}\n\n{content}\n\n---\n\n"
+                                # ?蝯?閬?
+                                if stage == "done" and "summary" in update:
+                                    summary_md = ""
+                                    for stype, content in update["summary"].items():
+                                        type_name = SUMMARY_TYPES.get(stype, {}).get("name", stype)
+                                        summary_md += f"## {type_name}\n\n{content}\n\n---\n\n"
                         
-                        final_status = "處理完成。"
+                            final_status = "處理完成。"
                         
-                    except Exception as e:
-                        final_status = f"處理失敗：{str(e)}"
-                        summary_md = f"*摘要產生失敗：{str(e)}*"
+                        except Exception as e:
+                            final_status = f"處理失敗：{str(e)}"
+                            summary_md = f"*摘要產生失敗：{str(e)}*"
                     
-                    return (
-                        final_status,
-                        current_progress,
-                        transcript_text,
-                        summary_md if summary_md else "*尚未產生摘要*"
+                        return (
+                            final_status,
+                            current_progress,
+                            transcript_text,
+                            summary_md if summary_md else "*尚未產生摘要*"
+                        )
+                
+                    # 銝???蝔?
+                    def save_transcript(transcript_text):
+                        if not transcript_text:
+                            return None
+                        import tempfile
+                        temp_path = os.path.join(tempfile.gettempdir(), "meeting_transcript.txt")
+                        with open(temp_path, "w", encoding="utf-8") as f:
+                            f.write(transcript_text)
+                        return temp_path
+                
+                    # 銝???
+                    def save_summary(summary_md):
+                        if not summary_md or summary_md.startswith("*"):
+                            return None
+                        import tempfile
+                        temp_path = os.path.join(tempfile.gettempdir(), "meeting_summary.md")
+                        with open(temp_path, "w", encoding="utf-8") as f:
+                            f.write(summary_md)
+                        return temp_path
+                
+                    # 蝬?鈭辣
+                    meeting_process_btn.click(
+                        fn=process_meeting_summary,
+                        inputs=[
+                            meeting_video_upload, meeting_language, summary_type_selector,
+                            ai_backend_selector, ollama_model_selector, gemini_api_key_input
+                        ],
+                        outputs=[meeting_status, meeting_progress, transcript_output, summary_output]
                     )
                 
-                # 銝???蝔?
-                def save_transcript(transcript_text):
-                    if not transcript_text:
-                        return None
-                    import tempfile
-                    temp_path = os.path.join(tempfile.gettempdir(), "meeting_transcript.txt")
-                    with open(temp_path, "w", encoding="utf-8") as f:
-                        f.write(transcript_text)
-                    return temp_path
+                    download_transcript_btn.click(
+                        fn=save_transcript,
+                        inputs=[transcript_output],
+                        outputs=[transcript_file]
+                    )
                 
-                # 銝???
-                def save_summary(summary_md):
-                    if not summary_md or summary_md.startswith("*"):
-                        return None
-                    import tempfile
-                    temp_path = os.path.join(tempfile.gettempdir(), "meeting_summary.md")
-                    with open(temp_path, "w", encoding="utf-8") as f:
-                        f.write(summary_md)
-                    return temp_path
+                    download_summary_btn.click(
+                        fn=save_summary,
+                        inputs=[summary_output],
+                        outputs=[summary_file]
+                    )
+                    gr.Markdown("""
+                    > **Supported Inputs**
+                    > - Video: mp4, avi, mov, mkv, webm
+                    > - Multiple summary types can be selected.
+                    > - AI backend supports local Ollama or Gemini API.
+                    > - Start with a short clip to validate your pipeline.
+                    > - If summaries are too short, try a larger model or better audio quality.
+                    """)
+
+                create_history_tab()
+
+                with gr.TabItem("About"):
+                    gr.Markdown("""
+                    ## TranslateGemma
                 
-                # 蝬?鈭辣
-                meeting_process_btn.click(
-                    fn=process_meeting_summary,
-                    inputs=[
-                        meeting_video_upload, meeting_language, summary_type_selector,
-                        ai_backend_selector, ollama_model_selector, gemini_api_key_input
-                    ],
-                    outputs=[meeting_status, meeting_progress, transcript_output, summary_output]
-                )
+                    TranslateGemma is a multilingual translation workspace powered by local models.
                 
-                download_transcript_btn.click(
-                    fn=save_transcript,
-                    inputs=[transcript_output],
-                    outputs=[transcript_file]
-                )
+                    ### Highlights
+                    - Text, image OCR, PDF, voice, video translation
+                    - Real-time speech translation and meeting summary
+                    - Extensible model/backend workflow
+                    - 55+ language options
                 
-                download_summary_btn.click(
-                    fn=save_summary,
-                    inputs=[summary_output],
-                    outputs=[summary_file]
-                )
-                gr.Markdown("""
-                > **Supported Inputs**
-                > - Video: mp4, avi, mov, mkv, webm
-                > - Multiple summary types can be selected.
-                > - AI backend supports local Ollama or Gemini API.
-                > - Start with a short clip to validate your pipeline.
-                > - If summaries are too short, try a larger model or better audio quality.
-                """)
-            
-            # ========== 甇瑕閮??? ==========
-            create_history_tab()
-            
-            # ========== ??? ==========
-            # ========== About ==========
-            with gr.TabItem("About"):
-                gr.Markdown("""
-                ## TranslateGemma
+                    ### Runtime
+                    - Default model: `translategemma`
+                    - Inference runtime: Ollama
+                    - Verify local model health before large jobs
                 
-                TranslateGemma is a multilingual translation workspace powered by local models.
-                
-                ### Highlights
-                - Text, image OCR, PDF, voice, video translation
-                - Real-time speech translation and meeting summary
-                - Extensible model/backend workflow
-                - 55+ language options
-                
-                ### Runtime
-                - Default model: `translategemma`
-                - Inference runtime: Ollama
-                - Verify local model health before large jobs
-                
-                ### Notes
-                For unstable quality, tune prompt, glossary, and style settings, then verify with a small regression set.
-                """)
+                    ### Notes
+                    For unstable quality, tune prompt, glossary, and style settings, then verify with a small regression set.
+                    """)
+
         gr.Markdown("---")
         gr.Markdown("**提示**：請先確認模型與外部工具安裝完成。")
-    
+
     return demo
+
+
 
 
 # ============ 銝餌?撘?============
@@ -1437,7 +1869,7 @@ if __name__ == "__main__":
             break
         except OSError as exc:
             if "Cannot find empty port" in str(exc):
-                print(f"[WARN] Port {port} is occupied, trying {port + 1}...")
+                log.warning("Port %d is occupied, trying %d...", port, port + 1)
                 continue
             raise
 
@@ -1455,7 +1887,7 @@ if __name__ == "__main__":
                 break
             except OSError as exc:
                 if "Cannot find empty port" in str(exc):
-                    print(f"[WARN] Port {port} is occupied, trying {port + 1}...")
+                    log.warning("Port %d is occupied, trying %d...", port, port + 1)
                     continue
                 raise
 

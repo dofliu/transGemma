@@ -1,0 +1,10 @@
+__pycache__
+*.pyc
+.git
+.env
+temp/
+logs/
+*.db
+.venv
+node_modules
+.pytest_cache
