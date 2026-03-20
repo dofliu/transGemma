@@ -1,13 +1,28 @@
-gradio
-ollama
-pytesseract
-Pillow
-PyMuPDF
-faster-whisper
-edge-tts
-yt-dlp
-ffmpeg-python
-fastapi
-uvicorn
-python-multipart
-mcp
+# ── Core UI & API ──
+gradio>=4.0,<5.0
+fastapi>=0.100,<1.0
+uvicorn>=0.20,<1.0
+python-multipart>=0.0.6
+
+# ── Translation engine ──
+ollama>=0.2,<1.0
+
+# ── OCR & Document ──
+pytesseract>=0.3.10
+Pillow>=10.0
+PyMuPDF>=1.23
+
+# ── Speech & Audio ──
+faster-whisper>=0.10
+edge-tts>=6.1
+numpy>=1.24
+
+# ── Video ──
+yt-dlp>=2024.1
+ffmpeg-python>=0.2.0
+
+# ── MCP integration ──
+mcp>=1.0
+
+# ── Configuration ──
+python-dotenv>=1.0

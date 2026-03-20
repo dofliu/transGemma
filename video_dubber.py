@@ -22,6 +22,9 @@ import yt_dlp
 from faster_whisper import WhisperModel
 
 from translator import translator
+from logger import get_logger
+
+log = get_logger(__name__)
 from languages import get_edge_tts_voice
 
 
@@ -45,7 +48,7 @@ class VideoDubber:
             os.makedirs(self.output_dir, exist_ok=True)
             
         self.whisper_model = None
-        print(f"VideoDubber initialized with output_dir: {self.output_dir}")
+        log.info("VideoDubber initialized with output_dir: %s", self.output_dir)
         
     def _get_whisper_model(self):
         """延遲載入 Whisper 模型"""
@@ -226,7 +229,7 @@ class VideoDubber:
         ], capture_output=True, text=True)
         try:
             return float(result.stdout.strip())
-        except:
+        except (ValueError, TypeError):
             return 0.0
     
     def adjust_audio_speed(self, audio_path: str, target_duration: float) -> str:
@@ -251,7 +254,7 @@ class VideoDubber:
         
         # 如果原始速度超出範圍，記錄警告
         if (original_speed < 0.85 or original_speed > 1.25):
-            print(f"⚠️ 語速調整受限: 原始需要 {original_speed:.2f}x，實際使用 {speed_factor:.2f}x")
+            log.warning("Speech rate clamped: requested %.2fx, using %.2fx", original_speed, speed_factor)
         
         # 先調整速度
         subprocess.run([

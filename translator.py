@@ -3,6 +3,9 @@ TranslateGemma translation service.
 """
 
 import os
+from logger import get_logger
+
+log = get_logger(__name__)
 import re
 import tempfile
 from typing import Generator
@@ -555,7 +558,7 @@ Translate the following text:
             await communicate.save(output_path)
             return output_path
         except Exception as exc:
-            print(f"TTS 失敗: {exc}")
+            log.warning("TTS failed: %s", exc)
             return ""
 
 

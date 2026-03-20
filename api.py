@@ -12,6 +12,9 @@ from video_dubber import video_dubber
 from history import history_manager
 from languages import LANGUAGES
 from meeting_summarizer import MeetingSummarizer
+from logger import get_logger
+
+log = get_logger(__name__)
 
 import gradio as gr
 from app import create_ui
@@ -20,7 +23,7 @@ from app import create_ui
 project_temp = os.path.join(os.getcwd(), "temp")
 os.makedirs(project_temp, exist_ok=True)
 video_dubber.output_dir = project_temp
-print(f"API configured video_dubber output_dir: {project_temp}")
+log.info("API configured video_dubber output_dir: %s", project_temp)
 
 app = FastAPI(
     title="TranslateGemma API",

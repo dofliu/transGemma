@@ -10,6 +10,9 @@ import re
 from urllib.parse import urlparse, parse_qs, unquote
 from translator import translator
 from languages import LANGUAGES, COMMON_LANGUAGES, get_language_info
+from logger import get_logger
+
+log = get_logger(__name__)
 
 # ============ 隞撣豢 ============
 TITLE = "TranslateGemma"
@@ -268,7 +271,7 @@ def translate_voice(audio, source_lang: str, target_lang: str):
         loop.close()
     except Exception as e:
         audio_path = None
-        print(f"TTS failed: {e}")
+        log.warning("TTS failed: %s", e)
 
     history_manager.add_history(
         type="voice",
@@ -593,12 +596,12 @@ def process_stream_chunk(audio_chunk, source_lang: str, target_lang: str, silenc
                 tts_audio_path = loop.run_until_complete(translator.text_to_speech(translated, target_lang))
                 loop.close()
             except Exception as e:
-                print(f"TTS failed: {e}")
+                log.warning("TTS failed: %s", e)
 
         os.remove(temp_path)
 
     except Exception as e:
-        print(f"Streaming pipeline failed: {e}")
+        log.error("Streaming pipeline failed: %s", e)
 
     status = "Current segment translated. Keep speaking..."
     return stream_state.full_transcript.strip(), stream_state.full_translation.strip(), status, tts_audio_path
@@ -1866,7 +1869,7 @@ if __name__ == "__main__":
             break
         except OSError as exc:
             if "Cannot find empty port" in str(exc):
-                print(f"[WARN] Port {port} is occupied, trying {port + 1}...")
+                log.warning("Port %d is occupied, trying %d...", port, port + 1)
                 continue
             raise
 
@@ -1884,7 +1887,7 @@ if __name__ == "__main__":
                 break
             except OSError as exc:
                 if "Cannot find empty port" in str(exc):
-                    print(f"[WARN] Port {port} is occupied, trying {port + 1}...")
+                    log.warning("Port %d is occupied, trying %d...", port, port + 1)
                     continue
                 raise
 
