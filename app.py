@@ -714,7 +714,7 @@ def create_ui():
             <section class="tg-hero">
               <div>
                 <h1>TranslateGemma</h1>
-                <p>翻譯 · 學習 · 會議 — 本地 AI 驅動的多語工作台</p>
+                <p>翻譯 | 學習 | 會議 - 本地 AI 驅動的多語工作台</p>
               </div>
               <span class="tg-hero-badge">55+ 語言</span>
             </section>
