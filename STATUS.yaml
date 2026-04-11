@@ -1,0 +1,22 @@
+name: TranslateGemma
+name_zh: 本地優先多語翻譯工作台
+category: personal_tools
+progress: 72
+status: active
+last_updated: "2026-04-11"
+next_milestone: "Phase 4 - 語言學習評估模組完善 + MCP 工具整合"
+technologies:
+  - Python
+  - Gradio
+  - FastAPI
+  - Ollama
+  - FastMCP
+  - faster-whisper
+  - edge-tts
+  - PyMuPDF
+  - yt-dlp
+outputs:
+  - tool
+description: "Local-first multilingual translation workbench with text, OCR, PDF, speech, real-time voice, video translation and meeting summarization"
+description_zh: "本地優先多語翻譯工作台，整合文字翻譯、圖片 OCR、PDF 逐頁翻譯、語音翻譯、即時語音翻譯、影片配音與會議摘要八大功能，使用 Ollama 本地模型，支援術語表與風格指南自訂，並以 FastMCP 暴露翻譯服務供 LLM 工具鏈呼叫。"
+key_metrics: "8 translation modes, MCP-enabled, SQLite history"
